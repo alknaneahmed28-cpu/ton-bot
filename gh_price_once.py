@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 # Set these in GitHub repository Settings > Secrets and variables > Actions.
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-CHAT_ID = os.environ.get("CHAT_ID", "@Gram_Price_Today")
+CHAT_ID = os.environ["@Gram_Price_Today"]
 
 DECIMALS = 4
 IQD_RATE_MANUAL = 0  # Set market rate (e.g. 1500), or 0 to use the API rate.
