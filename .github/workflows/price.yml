@@ -9,9 +9,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ton-price-bot
+  cancel-in-progress: false
+
 jobs:
-  post-price:
+  publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,7 +27,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run price bot
+      - name: Send TON price
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: "@Gram_Price_Today"
