@@ -1,4 +1,3 @@
-
 name: TON Price Bot
 
 on:
@@ -17,19 +16,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 8
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Show repository files
-        run: |
-          echo "Repository root:"
-          pwd
-          echo "Root files:"
-          ls -la
-          echo "Python files found:"
-          find . -maxdepth 4 -type f -name '*.py' -print
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -41,9 +30,9 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then
             python -m pip install -r requirements.txt
-          elif [ -f bot.py ]; then
-            python -m pip install "matplotlib>=3.8,<4.0"
           fi
+          # Install explicitly so both bot.py and the fallback have matplotlib.
+          python -m pip install "matplotlib>=3.8,<4.0"
 
       - name: Restore previous bot state
         uses: actions/cache/restore@v4
@@ -71,7 +60,7 @@ jobs:
             python -m py_compile gh_price_once.py
             python gh_price_once.py
           else
-            echo "ERROR: No supported Python script found."
+            echo "ERROR: Neither bot.py nor gh_price_once.py exists in the repository root."
             find . -maxdepth 4 -type f -name '*.py' -print
             exit 1
           fi
