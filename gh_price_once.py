@@ -4,10 +4,12 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+# Set these in GitHub repository Settings > Secrets and variables > Actions.
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ.get("CHAT_ID", "@Gram_Price_Today")
+
 DECIMALS = 4
-IQD_RATE_MANUAL = 0      # ضع رقم سعر السوق (مثل 1500) أو اتركه 0 للسعر الرسمي
+IQD_RATE_MANUAL = 0  # Set market rate (e.g. 1500), or 0 to use the API rate.
 IQD_RATE_FALLBACK = 1310
 STATE_FILE = "last_price.txt"
 BAGHDAD = timezone(timedelta(hours=3))
@@ -16,111 +18,131 @@ HEADERS = {"User-Agent": "Mozilla/5.0 ton-price-bot"}
 
 def get_json(url, data=None):
     req = urllib.request.Request(url, data=data, headers=HEADERS)
-    with urllib.request.urlopen(req, timeout=15) as r:
-        return json.loads(r.read().decode())
+    with urllib.request.urlopen(req, timeout=15) as response:
+        return json.loads(response.read().decode("utf-8"))
 
 
-# ===== السعر =====
-def binance(sym):
-    return lambda: float(get_json(
-        f"https://api.binance.com/api/v3/ticker/price?symbol={sym}")["price"])
+# Price sources
+def binance(symbol):
+    return lambda: float(
+        get_json(
+            f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
+        )["price"]
+    )
 
 
 def coingecko():
-    d = get_json("https://api.coingecko.com/api/v3/simple/price"
-                 "?ids=the-open-network&vs_currencies=usd")
-    return float(d["the-open-network"]["usd"])
+    data = get_json(
+        "https://api.coingecko.com/api/v3/simple/price"
+        "?ids=the-open-network&vs_currencies=usd"
+    )
+    return float(data["the-open-network"]["usd"])
 
 
 def get_price():
     errors = []
-    for name, fn in [("Binance GRAM", binance("GRAMUSDT")),
-                     ("Binance TON", binance("TONUSDT")),
-                     ("CoinGecko", coingecko)]:
+    for name, fn in (
+        ("Binance GRAM", binance("GRAMUSDT")),
+        ("Binance TON", binance("TONUSDT")),
+        ("CoinGecko", coingecko),
+    ):
         try:
             return fn()
-        except Exception as e:
-            errors.append(f"{name}: {e}")
-    raise SystemExit("all sources failed: " + " | ".join(errors))
+        except Exception as exc:
+            errors.append(f"{name}: {exc}")
+    raise SystemExit("All price sources failed: " + " | ".join(errors))
 
 
 def get_iqd_rate():
     if IQD_RATE_MANUAL > 0:
         return IQD_RATE_MANUAL
     try:
-        return float(get_json("https://open.er-api.com/v6/latest/USD")["rates"]["IQD"])
-    except Exception as e:
-        print("iqd rate failed:", e)
+        data = get_json("https://open.er-api.com/v6/latest/USD")
+        return float(data["rates"]["IQD"])
+    except Exception as exc:
+        print("IQD rate failed:", exc)
         return IQD_RATE_FALLBACK
 
 
-# ===== التحليل الفني (شمعات ساعة) =====
+# Technical analysis (hourly candles)
 def get_candles():
-    """يرجع (closes, highs, lows) لآخر ~48 ساعة، أو None."""
-    for sym in ("GRAMUSDT", "TONUSDT"):
+    """Return (closes, highs, lows) for about the last 48 hours, or None."""
+    for symbol in ("GRAMUSDT", "TONUSDT"):
         try:
-            ks = get_json("https://api.binance.com/api/v3/klines"
-                          f"?symbol={sym}&interval=1h&limit=48")
-            if len(ks) >= 30:
-                return ([float(k[4]) for k in ks],
-                        [float(k[2]) for k in ks],
-                        [float(k[3]) for k in ks])
-        except Exception as e:
-            print(f"klines {sym} failed:", e)
+            candles = get_json(
+                "https://api.binance.com/api/v3/klines"
+                f"?symbol={symbol}&interval=1h&limit=48"
+            )
+            if len(candles) >= 30:
+                return (
+                    [float(candle[4]) for candle in candles],
+                    [float(candle[2]) for candle in candles],
+                    [float(candle[3]) for candle in candles],
+                )
+        except Exception as exc:
+            print(f"Klines for {symbol} failed:", exc)
+
     try:
-        d = get_json("https://api.coingecko.com/api/v3/coins/the-open-network/"
-                     "market_chart?vs_currency=usd&days=2")
-        closes = [p[1] for p in d["prices"]][-48:]
+        data = get_json(
+            "https://api.coingecko.com/api/v3/coins/the-open-network/"
+            "market_chart?vs_currency=usd&days=2"
+        )
+        closes = [point[1] for point in data["prices"]][-48:]
         if len(closes) >= 30:
             return closes, closes, closes
-    except Exception as e:
-        print("coingecko chart failed:", e)
+    except Exception as exc:
+        print("CoinGecko chart failed:", exc)
+
     return None
 
 
 def calc_rsi(closes, period=14):
     if len(closes) < period + 1:
         return None
-    gains, losses = [], []
-    for a, b in zip(closes, closes[1:]):
-        d = b - a
-        gains.append(max(d, 0))
-        losses.append(max(-d, 0))
-    avg_g = sum(gains[:period]) / period
-    avg_l = sum(losses[:period]) / period
-    for g, l in zip(gains[period:], losses[period:]):
-        avg_g = (avg_g * (period - 1) + g) / period
-        avg_l = (avg_l * (period - 1) + l) / period
-    if avg_l == 0:
-        return 100.0
-    return 100 - 100 / (1 + avg_g / avg_l)
+
+    changes = [b - a for a, b in zip(closes, closes[1:])]
+    gains = [max(change, 0) for change in changes]
+    losses = [max(-change, 0) for change in changes]
+
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+
+    for gain, loss in zip(gains[period:], losses[period:]):
+        avg_gain = (avg_gain * (period - 1) + gain) / period
+        avg_loss = (avg_loss * (period - 1) + loss) / period
+
+    if avg_loss == 0:
+        return 100.0 if avg_gain > 0 else 50.0
+
+    relative_strength = avg_gain / avg_loss
+    return 100 - 100 / (1 + relative_strength)
 
 
 def analyze(price):
-    c = get_candles()
-    if not c:
+    candles = get_candles()
+    if not candles:
         return None
-    closes, highs, lows = c
-    closes = closes[:-1] + [price]          # آخر شمعة = السعر الحالي
+
+    closes, highs, lows = candles
+    closes = closes[:-1] + [price]
     rsi = calc_rsi(closes)
     if rsi is None:
         return None
-    last24 = closes[-24:]
-    sma = sum(last24) / len(last24)
-    ref = closes[-25] if len(closes) >= 25 else closes[0]
+
+    last_24 = closes[-24:]
+    sma = sum(last_24) / len(last_24)
+    reference = closes[-25] if len(closes) >= 25 else closes[0]
+
     return {
         "rsi": rsi,
-        "change24": (price - ref) / ref * 100,
+        "change24": ((price - reference) / reference * 100) if reference else 0,
         "hi": max(max(highs[-24:]), price),
         "lo": min(min(lows[-24:]), price),
-        # شراء: السوق مبالغ بنزوله (RSI منخفض) والسعر تحت متوسط 24 ساعة
         "buy": rsi <= 40 and price < sma,
-        # بيع: السوق مبالغ بصعوده (RSI مرتفع) والسعر فوق متوسط 24 ساعة
         "sell": rsi >= 60 and price > sma,
     }
 
 
-# ===== الرسالة =====
 def time_12h():
     now = datetime.now(BAGHDAD)
     return f"{now:%I:%M:%S} {'ص' if now.hour < 12 else 'م'}"
@@ -128,34 +150,48 @@ def time_12h():
 
 def build_text(price, old):
     iqd = price * get_iqd_rate()
+
     if old is None:
-        head, diff = "💎 <b>سعر TON (GRAM) الان</b>", ""
+        heading = "💎 <b>سعر TON (GRAM) الآن</b>"
+        difference = ""
     elif price == old:
-        head = "⚪ <b>سعر TON (GRAM) الان</b>"
-        diff = "\n📊 التغيّر: بدون تغيير"
+        heading = "⚪ <b>سعر TON (GRAM) الآن</b>"
+        difference = "\n📊 التغيّر: بدون تغيير"
     else:
-        d = price - old
-        head = ("🟢 <b>صعود</b> ▲" if d > 0 else "🔴 <b>نزول</b> ▼") + " | <b>TON (GRAM)</b>"
-        diff = f"\n📊 التغيّر: <code>{d:+.{DECIMALS}f}$</code> ({d / old * 100:+.2f}%)"
+        delta = price - old
+        heading = (
+            "🟢 <b>صعود</b> ▲" if delta > 0 else "🔴 <b>نزول</b> ▼"
+        ) + " | <b>TON (GRAM)</b>"
+        percent = delta / old * 100 if old else 0
+        difference = (
+            f"\n📊 التغيّر: <code>{delta:+.{DECIMALS}f}$</code> "
+            f"({percent:+.2f}%)"
+        )
 
-    text = (f"{head}\n"
-            f"━━━━━━━━━━━━━━\n"
-            f"💵 الدولار: <b>${price:.{DECIMALS}f}</b>\n"
-            f"🇮🇶 الدينار: <b>{iqd:,.0f} د.ع</b>"
-            f"{diff}\n")
+    message = (
+        f"{heading}\n"
+        "━━━━━━━━━━━━━━\n"
+        f"💵 الدولار: <b>${price:.{DECIMALS}f}</b>\n"
+        f"🇮🇶 الدينار: <b>{iqd:,.0f} د.ع</b>"
+        f"{difference}\n"
+    )
 
-    a = analyze(price)
-    if a:
-        text += (f"━━━━━━━━━━━━━━\n"
-                 f"📅 24 ساعة: <b>{a['change24']:+.2f}%</b>\n"
-                 f"⬆️ الأعلى: ${a['hi']:.{DECIMALS}f}  ⬇️ الأقل: ${a['lo']:.{DECIMALS}f}\n"
-                 f"📈 مؤشر RSI: <b>{a['rsi']:.0f}</b>\n"
-                 f"━━━━━━━━━━━━━━\n"
-                 f"🛒 الوقت مناسب للشراء: <b>{'✅ نعم' if a['buy'] else '❌ لا'}</b>\n"
-                 f"💰 الوقت مناسب للبيع: <b>{'✅ نعم' if a['sell'] else '❌ لا'}</b>\n"
-                 f"<i>⚠️ إشارة فنية بسيطة وليست نصيحة مالية.</i>\n")
-    text += f"━━━━━━━━━━━━━━\n🕒 {time_12h()}"
-    return text
+    analysis = analyze(price)
+    if analysis:
+        message += (
+            "━━━━━━━━━━━━━━\n"
+            f"📅 24 ساعة: <b>{analysis['change24']:+.2f}%</b>\n"
+            f"⬆️ الأعلى: ${analysis['hi']:.{DECIMALS}f}  "
+            f"⬇️ الأقل: ${analysis['lo']:.{DECIMALS}f}\n"
+            f"📈 مؤشر RSI: <b>{analysis['rsi']:.0f}</b>\n"
+            "━━━━━━━━━━━━━━\n"
+            f"🛒 الوقت مناسب للشراء: <b>{'✅ نعم' if analysis['buy'] else '❌ لا'}</b>\n"
+            f"💰 الوقت مناسب للبيع: <b>{'✅ نعم' if analysis['sell'] else '❌ لا'}</b>\n"
+            "<i>⚠️ إشارة فنية بسيطة وليست نصيحة مالية.</i>\n"
+        )
+
+    message += f"━━━━━━━━━━━━━━\n🕒 {time_12h()}"
+    return message
 
 
 def main():
@@ -164,21 +200,28 @@ def main():
     last = None
     if os.path.exists(STATE_FILE):
         try:
-            last = float(open(STATE_FILE).read().strip())
-        except ValueError:
+            with open(STATE_FILE, "r", encoding="utf-8") as file:
+                last = float(file.read().strip())
+        except (ValueError, OSError):
             pass
 
-    data = urllib.parse.urlencode({
+    payload = urllib.parse.urlencode({
         "chat_id": CHAT_ID,
         "text": build_text(price, last),
         "parse_mode": "HTML",
-    }).encode()
-    res = get_json(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", data=data)
-    if not res.get("ok"):
-        raise SystemExit(f"telegram rejected: {res}")
+    }).encode("utf-8")
 
-    open(STATE_FILE, "w").write(str(price))
-    print("sent:", price)
+    response = get_json(
+        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+        data=payload,
+    )
+    if not response.get("ok"):
+        raise SystemExit(f"Telegram rejected the message: {response}")
+
+    with open(STATE_FILE, "w", encoding="utf-8") as file:
+        file.write(str(price))
+
+    print("Sent price:", price)
 
 
 if __name__ == "__main__":
