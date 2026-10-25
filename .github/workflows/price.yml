@@ -1,19 +1,17 @@
+
 name: TON Price Bot
+
 on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
-permissions:
-  contents: write
 
-concurrency:
-  group: ton-price-bot
-  cancel-in-progress: false
+permissions:
+  contents: read
 
 jobs:
   post-price:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,13 +26,3 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: "@Gram_Price_Today"
         run: python gh_price_once.py
-
-      - name: Save last price
-        run: |
-          if [ -f last_price.txt ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add last_price.txt
-            git diff --cached --quiet || git commit -m "Update last price"
-            git push
-          fi
