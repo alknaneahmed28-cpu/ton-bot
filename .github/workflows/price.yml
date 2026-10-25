@@ -16,7 +16,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
 
     steps:
       - name: Checkout repository
@@ -27,8 +27,25 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Send TON price
+      - name: Restore previous bot state
+        uses: actions/cache/restore@v4
+        with:
+          path: ton_state.json
+          key: ton-state-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            ton-state-${{ github.ref_name }}-
+
+      - name: Publish TON update
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: "@Gram_Price_Today"
+          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+          ALERT_USD: ${{ vars.ALERT_USD }}
         run: python gh_price_once.py
+
+      - name: Save previous bot state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ton_state.json
+          key: ton-state-${{ github.ref_name }}-${{ github.run_id }}
