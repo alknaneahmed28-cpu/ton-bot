@@ -1,4 +1,6 @@
+
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """TON Telegram channel publisher: change-based updates, chart, analysis, daily report."""
 import io
 import json
@@ -197,23 +199,23 @@ def rsi(values, period=14):
 def analysis_text(data):
     prices = data["prices"]
     if len(prices) < 15:
-        return "ðŸ“Š Ø§Ù„ØªØ­Ù„ÙŠÙ„ Ø§Ù„ÙÙ†ÙŠ: Ø¨ÙŠØ§Ù†Ø§Øª ØºÙŠØ± ÙƒØ§ÙÙŠØ© Ø­Ø§Ù„ÙŠØ§Ù‹"
+        return "📊 التحليل الفني: بيانات غير كافية حالياً"
     current = prices[-1]
     sma7 = sum(prices[-7:]) / 7
     sma14 = sum(prices[-14:]) / 14
     value_rsi = rsi(prices, 14)
     if current > sma7 > sma14:
-        trend = "ðŸŸ¢ Ø§ØªØ¬Ø§Ù‡ ØµØ§Ø¹Ø¯ Ù‚ØµÙŠØ± Ø§Ù„Ø£Ø¬Ù„"
+        trend = "🟢 اتجاه صاعد قصير الأجل"
     elif current < sma7 < sma14:
-        trend = "ðŸ”´ Ø§ØªØ¬Ø§Ù‡ Ù‡Ø§Ø¨Ø· Ù‚ØµÙŠØ± Ø§Ù„Ø£Ø¬Ù„"
+        trend = "🔴 اتجاه هابط قصير الأجل"
     else:
-        trend = "ðŸŸ¡ Ø§ØªØ¬Ø§Ù‡ Ù…ØªØ°Ø¨Ø°Ø¨ Ø£Ùˆ ØºÙŠØ± ÙˆØ§Ø¶Ø­"
+        trend = "🟡 اتجاه متذبذب أو غير واضح"
     if value_rsi is None:
-        rsi_line = "RSI: ØºÙŠØ± Ù…ØªÙˆÙØ±"
+        rsi_line = "RSI: غير متوفر"
     else:
-        label = "Ù…Ù†Ø·Ù‚Ø© ØªØ´Ø¨Ø¹ Ø´Ø±Ø§Ø¦ÙŠ Ù…Ø­ØªÙ…Ù„Ø©" if value_rsi >= 70 else "Ù…Ù†Ø·Ù‚Ø© ØªØ´Ø¨Ø¹ Ø¨ÙŠØ¹ÙŠ Ù…Ø­ØªÙ…Ù„Ø©" if value_rsi <= 30 else "Ø¶Ù…Ù† Ø§Ù„Ù†Ø·Ø§Ù‚ Ø§Ù„Ù…Ø¹ØªØ§Ø¯"
-        rsi_line = f"RSI(14): {value_rsi:.1f} â€” {label}"
-    return f"ðŸ“Š Ø§Ù„ØªØ­Ù„ÙŠÙ„ Ø§Ù„ÙÙ†ÙŠ\n{trend}\n{rsi_line}\nðŸ“Œ ØªØ­Ù„ÙŠÙ„ Ø¢Ù„ÙŠ Ù…Ø¨Ø³Ù‘Ø·ØŒ ÙˆÙ„ÙŠØ³ ØªÙˆØµÙŠØ© Ø§Ø³ØªØ«Ù…Ø§Ø±ÙŠØ©."
+        label = "منطقة تشبع شرائي محتملة" if value_rsi >= 70 else "منطقة تشبع بيعي محتملة" if value_rsi <= 30 else "ضمن النطاق المعتاد"
+        rsi_line = f"RSI(14): {value_rsi:.1f} — {label}"
+    return f"📊 التحليل الفني\n{trend}\n{rsi_line}\n📌 تحليل آلي مبسّط، وليس توصية استثمارية."
 
 
 def make_chart(data):
@@ -222,7 +224,7 @@ def make_chart(data):
         return None
     fig, ax = plt.subplots(figsize=(10, 5.5))
     ax.plot(times, prices, linewidth=2)
-    ax.set_title("TON / USDT â€” Last 24-48 hours")
+    ax.set_title("TON / USDT — Last 24-48 hours")
     ax.set_xlabel("Baghdad time")
     ax.set_ylabel("Price (USDT)")
     ax.grid(True, alpha=0.25)
@@ -238,45 +240,45 @@ def make_chart(data):
 def build_post(data, rate, previous):
     now = datetime.now(BAGHDAD)
     price = data["price"]
-    iqd = f"{price * rate:,.0f} Ø¯.Ø¹" if rate is not None else "ØºÙŠØ± Ù…ØªÙˆÙØ± Ø­Ø§Ù„ÙŠØ§Ù‹"
-    high = f"${data['high']:.4f}" if data["high"] is not None else "ØºÙŠØ± Ù…ØªÙˆÙØ±"
-    low = f"${data['low']:.4f}" if data["low"] is not None else "ØºÙŠØ± Ù…ØªÙˆÙØ±"
+    iqd = f"{price * rate:,.0f} د.ع" if rate is not None else "غير متوفر حالياً"
+    high = f"${data['high']:.4f}" if data["high"] is not None else "غير متوفر"
+    low = f"${data['low']:.4f}" if data["low"] is not None else "غير متوفر"
     if previous is None:
-        diff = "Ø¨Ø§Ù†ØªØ¸Ø§Ø± Ø§Ù„ØªØ­Ø¯ÙŠØ« Ø§Ù„Ù‚Ø§Ø¯Ù…"
+        diff = "بانتظار التحديث القادم"
     else:
         delta = price - previous
-        emoji = "ðŸŸ¢" if delta > 0 else "ðŸ”´" if delta < 0 else "âšª"
+        emoji = "🟢" if delta > 0 else "🔴" if delta < 0 else "⚪"
         diff = f"{emoji} {delta:+.4f} USD"
     return (
-        "ðŸ’Žâ”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”“\n"
+        "💎┏━━━━━━━━━━━━━━━━━━━━┓\n"
         "      TON  |  LIVE MARKET\n"
-        "â”—â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”›\n\n"
-        "ðŸ’µ Ø§Ù„Ø³Ø¹Ø± Ø¨Ø§Ù„Ø¯ÙˆÙ„Ø§Ø±\n"
-        f"ã€€âžœ `${price:.4f} USDT`\n\n"
-        "ðŸ‡®ðŸ‡¶ Ø§Ù„Ø³Ø¹Ø± Ø¨Ø§Ù„Ø¯ÙŠÙ†Ø§Ø± Ø§Ù„Ø¹Ø±Ø§Ù‚ÙŠ\n"
-        f"ã€€âžœ `{iqd}`\n\n"
-        "ðŸ“Š Ø¥Ø­ØµØ§Ø¦ÙŠØ§Øª Ø§Ù„Ø³ÙˆÙ‚\n"
-        f"ã€€ðŸ“ˆ ØªØºÙŠÙ‘Ø± 24 Ø³Ø§Ø¹Ø©: `{format_change(data['change'])}`\n"
-        f"ã€€ðŸ”º Ø£Ø¹Ù„Ù‰ Ø³Ø¹Ø±: `{high}`\n"
-        f"ã€€ðŸ”» Ø£Ù‚Ù„ Ø³Ø¹Ø±: `{low}`\n\n"
-        "ðŸ“‰ Ù…Ù‚Ø§Ø±Ù†Ø© Ø¨Ø§Ù„ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø³Ø§Ø¨Ù‚\n"
-        f"ã€€âžœ `{diff}`\n\n"
-        "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n\n"
-        f"ðŸ•’ Ø¢Ø®Ø± ØªØ­Ø¯ÙŠØ«: `{now.strftime('%I:%M:%S %p')}`\n"
-        f"ðŸ“… Ø§Ù„ØªØ§Ø±ÙŠØ®: `{now.strftime('%d-%m-%Y')}`\n\n"
-        "âš ï¸ Ø§Ù„Ø£Ø³Ø¹Ø§Ø± Ù…ØªØºÙŠØ±Ø© Ø¨Ø§Ø³ØªÙ…Ø±Ø§Ø± ÙˆÙ‚Ø¯ ØªØ®ØªÙ„Ù Ø¨ÙŠÙ† Ø§Ù„Ù…Ù†ØµØ§Øª. ØªØ­Ù‚Ù‚ Ù‚Ø¨Ù„ Ø§Ù„ØªØ¯Ø§ÙˆÙ„.\n\n"
-        "ðŸ’Ž @Gram_Price_Today"
+        "┗━━━━━━━━━━━━━━━━━━━━┛\n\n"
+        "💵 السعر بالدولار\n"
+        f"　➜ `${price:.4f} USDT`\n\n"
+        "🇮🇶 السعر بالدينار العراقي\n"
+        f"　➜ `{iqd}`\n\n"
+        "📊 إحصائيات السوق\n"
+        f"　📈 تغيّر 24 ساعة: `{format_change(data['change'])}`\n"
+        f"　🔺 أعلى سعر: `{high}`\n"
+        f"　🔻 أقل سعر: `{low}`\n\n"
+        "📉 مقارنة بالتحديث السابق\n"
+        f"　➜ `{diff}`\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🕒 آخر تحديث: `{now.strftime('%I:%M:%S %p')}`\n"
+        f"📅 التاريخ: `{now.strftime('%d-%m-%Y')}`\n\n"
+        "⚠️ الأسعار متغيرة باستمرار وقد تختلف بين المنصات. تحقق قبل التداول.\n\n"
+        "💎 @Gram_Price_Today"
     )
 
 
 def format_change(value):
     if value is None:
-        return "ØºÙŠØ± Ù…ØªÙˆÙØ± Ø­Ø§Ù„ÙŠØ§Ù‹"
+        return "غير متوفر حالياً"
     if value > 0:
-        return f"ðŸŸ¢ â–² {value:+.2f}%"
+        return f"🟢 ▲ {value:+.2f}%"
     if value < 0:
-        return f"ðŸ”´ â–¼ {value:+.2f}%"
-    return f"âšª {value:+.2f}%"
+        return f"🔴 ▼ {value:+.2f}%"
+    return f"⚪ {value:+.2f}%"
 
 
 def publish_market_update(data, rate, state):
@@ -285,34 +287,33 @@ def publish_market_update(data, rate, state):
     send_text(post)
     chart = make_chart(data)
     if chart:
-        send_photo(chart, "ðŸ“‰ Ø­Ø±ÙƒØ© Ø³Ø¹Ø± TON â€” Ø§Ù„Ø±Ø³Ù… Ø§Ù„Ø¨ÙŠØ§Ù†ÙŠ Ù„Ù„ÙØªØ±Ø© Ø§Ù„Ù…ØªØ§Ø­Ø©")
+        send_photo(chart, "📉 حركة سعر TON — الرسم البياني للفترة المتاحة")
     send_text(analysis_text(data))
     state["last_price"] = data["price"]
 
 
 def daily_report(data, rate):
     now = datetime.now(BAGHDAD)
-    iqd = f"{data['price'] * rate:,.0f} Ø¯.Ø¹" if rate is not None else "ØºÙŠØ± Ù…ØªÙˆÙØ± Ø­Ø§Ù„ÙŠØ§Ù‹"
-    high = f"${data['high']:.4f}" if data["high"] is not None else "ØºÙŠØ± Ù…ØªÙˆÙØ±"
-    low = f"${data['low']:.4f}" if data["low"] is not None else "ØºÙŠØ± Ù…ØªÙˆÙØ±"
+    iqd = f"{data['price'] * rate:,.0f} د.ع" if rate is not None else "غير متوفر حالياً"
+    high = f"${data['high']:.4f}" if data["high"] is not None else "غير متوفر"
+    low = f"${data['low']:.4f}" if data["low"] is not None else "غير متوفر"
     return (
-        "ðŸ“…â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”“\n"
-        "       TON â€¢ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø§Ù„ÙŠÙˆÙ…ÙŠ\n"
-        "â”—â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”›\n\n"
-        f"ðŸ’µ Ø§Ù„Ø³Ø¹Ø± Ø§Ù„Ø­Ø§Ù„ÙŠ: ${data['price']:.4f} USDT\n"
-        f"ðŸ‡®ðŸ‡¶ Ø¨Ø§Ù„Ø¯ÙŠÙ†Ø§Ø± Ø§Ù„Ø¹Ø±Ø§Ù‚ÙŠ: {iqd}\n"
-        f"ðŸ“ˆ ØªØºÙŠÙ‘Ø± 24 Ø³Ø§Ø¹Ø©: {format_change(data['change'])}\n"
-        f"ðŸ”º Ø£Ø¹Ù„Ù‰ Ø³Ø¹Ø± 24 Ø³Ø§Ø¹Ø©: {high}\n"
-        f"ðŸ”» Ø£Ù‚Ù„ Ø³Ø¹Ø± 24 Ø³Ø§Ø¹Ø©: {low}\n\n"
+        "📅┏━━━━━━━━━━━━━━━━━━━━┓\n"
+        "       TON • التقرير اليومي\n"
+        "┗━━━━━━━━━━━━━━━━━━━━┛\n\n"
+        f"💵 السعر الحالي: ${data['price']:.4f} USDT\n"
+        f"🇮🇶 بالدينار العراقي: {iqd}\n"
+        f"📈 تغيّر 24 ساعة: {format_change(data['change'])}\n"
+        f"🔺 أعلى سعر 24 ساعة: {high}\n"
+        f"🔻 أقل سعر 24 ساعة: {low}\n\n"
         f"{analysis_text(data)}\n\n"
-        f"ðŸ•’ {now.strftime('%I:%M %p')} â€” ØªÙˆÙ‚ÙŠØª Ø¨ØºØ¯Ø§Ø¯\n"
-        "âš ï¸ Ù…Ø¹Ù„ÙˆÙ…Ø§Øª Ø¹Ø§Ù…Ø© ÙˆÙ„ÙŠØ³Øª ØªÙˆØµÙŠØ© Ø§Ø³ØªØ«Ù…Ø§Ø±ÙŠØ©.\n"
-        "ðŸ’Ž @Gram_Price_Today"
+        f"🕒 {now.strftime('%I:%M %p')} — توقيت بغداد\n"
+        "⚠️ معلومات عامة وليست توصية استثمارية.\n"
+        "💎 @Gram_Price_Today"
     )
 
 
 def handle_updates(state):
-    # This bot uses long polling; only configured admin IDs can use private commands.
     offset = int(state.get("update_offset", 0))
     updates = telegram("getUpdates", {
         "offset": offset + 1,
@@ -333,29 +334,29 @@ def handle_updates(state):
                 data = fetch_market()
                 send_text(build_post(data, fetch_iqd_rate(), state.get("last_price")), chat_id)
             except Exception as exc:
-                send_text(f"ØªØ¹Ø°Ø± Ø¬Ù„Ø¨ Ø§Ù„Ø³Ø¹Ø± Ø­Ø§Ù„ÙŠØ§Ù‹: {exc}", chat_id)
+                send_text(f"تعذر جلب السعر حالياً: {exc}", chat_id)
         elif command == "/analysis":
             try:
                 send_text(analysis_text(fetch_market()), chat_id)
             except Exception as exc:
-                send_text(f"ØªØ¹Ø°Ø± Ø¥Ø¹Ø¯Ø§Ø¯ Ø§Ù„ØªØ­Ù„ÙŠÙ„ Ø­Ø§Ù„ÙŠØ§Ù‹: {exc}", chat_id)
+                send_text(f"تعذر إعداد التحليل حالياً: {exc}", chat_id)
         elif command == "/chart":
             try:
                 chart = make_chart(fetch_market())
                 if chart:
-                    send_photo(chart, "ðŸ“‰ Ø­Ø±ÙƒØ© Ø³Ø¹Ø± TON", chat_id)
+                    send_photo(chart, "📉 حركة سعر TON", chat_id)
                 else:
-                    send_text("Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø±Ø³Ù… Ø§Ù„Ø¨ÙŠØ§Ù†ÙŠ ØºÙŠØ± Ù…ØªÙˆÙØ±Ø© Ø­Ø§Ù„ÙŠØ§Ù‹.", chat_id)
+                    send_text("بيانات الرسم البياني غير متوفرة حالياً.", chat_id)
             except Exception as exc:
-                send_text(f"ØªØ¹Ø°Ø± Ø¥Ø¹Ø¯Ø§Ø¯ Ø§Ù„Ø±Ø³Ù… Ø§Ù„Ø¨ÙŠØ§Ù†ÙŠ: {exc}", chat_id)
+                send_text(f"تعذر إعداد الرسم البياني: {exc}", chat_id)
         elif command == "/daily":
             try:
                 data = fetch_market()
                 send_text(daily_report(data, fetch_iqd_rate()), chat_id)
             except Exception as exc:
-                send_text(f"ØªØ¹Ø°Ø± Ø¥Ø¹Ø¯Ø§Ø¯ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø­Ø§Ù„ÙŠØ§Ù‹: {exc}", chat_id)
+                send_text(f"تعذر إعداد التقرير حالياً: {exc}", chat_id)
         elif command == "/status":
-            send_text("âœ… Ø¨ÙˆØª TON ÙŠØ¹Ù…Ù„ Ø¨Ù†Ø¸Ø§Ù… 24/7 Ø¹Ø¨Ø± polling.", chat_id)
+            send_text("✅ بوت TON يعمل بنظام 24/7 عبر polling.", chat_id)
     save_state(state)
 
 
@@ -387,7 +388,6 @@ def run_cycle(state):
 
 def main():
     state = load_state()
-    # GitHub Actions runs are short-lived: do one cycle and exit cleanly.
     if os.getenv("RUN_ONCE", "0").lower() in {"1", "true", "yes"}:
         log.info("Running one GitHub Actions cycle.")
         run_cycle(state)
