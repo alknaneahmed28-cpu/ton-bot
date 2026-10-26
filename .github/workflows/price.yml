@@ -1,3 +1,4 @@
+
 name: TON Price Bot
 
 on:
@@ -16,6 +17,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,7 +27,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Restore previous bot state
+      - name: Restore bot state
         uses: actions/cache/restore@v4
         with:
           path: ton_state.json
@@ -33,12 +35,12 @@ jobs:
           restore-keys: |
             ton-state-${{ github.ref_name }}-
 
-      - name: Run TON bot once
+      - name: Run TON bot
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
           ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
-          RUN_ONCE: "1"
+          ALERT_USD: ${{ vars.ALERT_USD }}
           STATE_FILE: ton_state.json
         run: python gh_price_once.py
 
