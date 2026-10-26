@@ -247,8 +247,6 @@ def make_chart(data):
 
 
 def build_post(data, rate, previous):
-
-def build_post(data, rate, previous):
     now = datetime.now(BAGHDAD)
 
     price = data["price"]
