@@ -1,4 +1,3 @@
-
 name: TON Price Bot
 
 on:
@@ -7,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ton-price-bot
@@ -16,11 +15,13 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,21 +32,30 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ton_state.json
-          key: ton-state-${{ github.ref_name }}-${{ github.run_id }}
+          key: ton-state-${{ github.run_id }}
           restore-keys: |
-            ton-state-${{ github.ref_name }}-
+            ton-state-
 
-      - name: Run TON bot
+      - name: Run TON price publisher
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
           ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
-          ALERT_USD: ${{ vars.ALERT_USD }}
           STATE_FILE: ton_state.json
+          LOG_LEVEL: INFO
         run: python gh_price_once.py
-      - name: Save bot state
+
+      - name: Save bot state to repository
         if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: ton_state.json
-          key: ton-state-${{ github.ref_name }}-${{ github.run_id }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f ton_state.json ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add ton_state.json
+            if ! git diff --cached --quiet; then
+              git commit -m "Update TON bot state"
+              git push origin HEAD:${GITHUB_REF_NAME}
+            fi
+          fi
