@@ -14,7 +14,9 @@ ADMIN_IDS = {x.strip() for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip
 POLL_SECONDS = max(30, int(os.getenv("POLL_SECONDS", "60")))
 STATE_FILE = os.getenv("STATE_FILE", "ton_state.json")
 BAGHDAD = timezone(timedelta(hours=3))
-STARS_USD_REWARD = 0.013  # Estimated developer reward reference; not purchase price.
+# Approximate comparison rates, not a guaranteed checkout quote.
+FRAGMENT_USD_PER_STAR = 0.0141
+ANDROID_USD_PER_STAR_ESTIMATE = 0.0201
 ALERT_PERCENT = 3.0
 
 BINANCE_TICKER = "https://api.binance.com/api/v3/ticker/24hr?symbol=TONUSDT"
@@ -60,11 +62,21 @@ def send_text(message, chat_id=None, reply_markup=None):
 
 def channel_keyboard():
     return {"inline_keyboard": [
-        [{"text": "⭐ حاسبة النجوم", "callback_data": "stars_calc"}],
+        [{"text": "⭐ حاسبة TON ↔ Stars", "callback_data": "stars_calc"}],
         [
             {"text": "📤 مشاركة القناة", "url": SHARE_URL},
             {"text": "📢 الاشتراك بالقناة", "url": CHANNEL_URL},
         ],
+    ]}
+
+
+def ton_calculator_keyboard():
+    return {"inline_keyboard": [
+        [{"text": "1 TON", "callback_data": "ton_amount:1"},
+         {"text": "3 TON", "callback_data": "ton_amount:3"}],
+        [{"text": "5 TON", "callback_data": "ton_amount:5"},
+         {"text": "10 TON", "callback_data": "ton_amount:10"}],
+        [{"text": "✍️ أدخل كمية يدوياً", "url": "https://t.me/Gram_Price_Today"}],
     ]}
 
 
@@ -190,19 +202,29 @@ def check_strong_movement(data, state, now_ts):
     state["price_history"] = history[-30:]
 
 
-def stars_message(count, price, rate):
-    usd = count * STARS_USD_REWARD
-    ton = usd / price if price else 0
-    iqd = usd * rate if rate else None
-    iqd_text = f"{iqd:,.0f} د.ع" if iqd is not None else "غير متوفر حالياً"
+def stars_message(ton_amount, price):
+    usd_value = ton_amount * price
+    fragment_stars = round(usd_value / FRAGMENT_USD_PER_STAR)
+    android_stars = round(usd_value / ANDROID_USD_PER_STAR_ESTIMATE)
     return (
-        "⭐ حاسبة Telegram Stars\n"
+        "⭐ حاسبة TON إلى Telegram Stars\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        f"⭐ عدد النجوم: {count:,}\n"
-        f"💵 قيمة المكافأة التقديرية: ${usd:,.2f}\n"
-        f"🇮🇶 بالدينار العراقي: {iqd_text}\n"
-        f"💎 ما يعادل TON تقريباً: {ton:.4f} TON\n\n"
-        "ℹ️ الحساب على أساس 0.013$ لكل نجمة كقيمة مكافأة للمطوّر، وليس سعر الشراء. قد تختلف القيمة الفعلية والرسوم."
+        f"💎 كمية TON: {ton_amount:g} TON\n"
+        f"💵 قيمة TON بسعر السوق الحالي: ${usd_value:,.4f}\n\n"
+        f"🌐 الويب / Fragment: نحو {fragment_stars:,} نجمة\n"
+        f"🤖 أندرويد: نحو {android_stars:,} نجمة (تقديري)\n\n"
+        f"📌 سعر TON المستخدم: ${price:,.4f}\n"
+        f"📌 افتراض الويب/Fragment: ${FRAGMENT_USD_PER_STAR:.4f} لكل نجمة.\n"
+        f"📌 افتراض أندرويد: ${ANDROID_USD_PER_STAR_ESTIMATE:.4f} لكل نجمة، وقد يختلف حسب البلد والضرائب ومزوّد الدفع.\n"
+        "⚠️ هذه مقارنة قيمة وليست عرض شراء أو سعراً مضموناً. السعر النهائي يظهر في شاشة الدفع الرسمية."
+    )
+
+
+def calculator_intro():
+    return (
+        "⭐ حاسبة TON ↔ Telegram Stars\n\n"
+        "اختَر كمية TON حتى أحسب قيمتها بسعر السوق الحالي، ثم أقارنها بتكلفة النجوم التقديرية على الويب/Fragment وأندرويد.\n"
+        "الأسعار تقريبية؛ سعر أندرويد يختلف حسب البلد والضرائب."
     )
 
 
@@ -214,9 +236,21 @@ def handle_updates(state):
         state["update_offset"] = max(int(state.get("update_offset", 0)), int(update.get("update_id", 0)))
         if update.get("callback_query"):
             query = update["callback_query"]
-            if query.get("data") == "stars_calc":
-                telegram("answerCallbackQuery", {"callback_query_id": query["id"],
-                         "text": "افتح محادثة البوت وأرسل /stars 1000 لحساب النجوم.", "show_alert": "true"})
+            callback_data = query.get("data", "")
+            telegram("answerCallbackQuery", {"callback_query_id": query["id"]})
+            callback_chat = str((query.get("from") or {}).get("id", ""))
+            if callback_data == "stars_calc":
+                if callback_chat:
+                    send_text(calculator_intro(), callback_chat, ton_calculator_keyboard())
+            elif callback_data.startswith("ton_amount:"):
+                try:
+                    amount = float(callback_data.split(":", 1)[1])
+                    market = fetch_market()
+                    if callback_chat:
+                        send_text(stars_message(amount, market["price"]), callback_chat, ton_calculator_keyboard())
+                except Exception as exc:
+                    if callback_chat:
+                        send_text(f"تعذر حساب السعر حالياً: {exc}", callback_chat, ton_calculator_keyboard())
             continue
         msg = update.get("message") or {}
         text = (msg.get("text") or "").strip()
@@ -233,13 +267,16 @@ def handle_updates(state):
         if command == "/start":
             send_text("أهلاً بك في بوت TON ⭐\nأرسل /stars 1000 لحساب قيمة النجوم.\nتابع القناة: " + CHANNEL_URL, chat_id)
         elif command == "/stars":
-            if not args or not args[0].isdigit() or int(args[0]) < 1 or int(args[0]) > 10_000_000:
-                send_text("استخدم الأمر هكذا:\n/stars 1000", chat_id)
+            if not args:
+                send_text(calculator_intro(), chat_id, ton_calculator_keyboard())
+                continue
+            amount = num(args[0])
+            if amount is None or amount <= 0 or amount > 1_000_000:
+                send_text("استخدم الأمر هكذا: /stars 3 (يعني 3 TON)", chat_id)
                 continue
             try:
                 market = fetch_market()
-                rate = fetch_iqd_rate(state)
-                send_text(stars_message(int(args[0]), market["price"], rate), chat_id)
+                send_text(stars_message(amount, market["price"]), chat_id, ton_calculator_keyboard())
             except Exception as exc:
                 send_text(f"تعذر الحساب حالياً: {exc}", chat_id)
         elif command == "/iqd":
