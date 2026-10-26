@@ -256,6 +256,7 @@ def build_post(data, rate, previous):
     high = f"${data['high']:.4f}" if data["high"] is not None else "غير متوفر"
     low = f"${data['low']:.4f}" if data["low"] is not None else "غير متوفر"
 
+
     if previous is None:
         diff = "بانتظار التحديث القادم"
     else:
