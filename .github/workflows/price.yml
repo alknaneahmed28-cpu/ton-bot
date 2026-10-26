@@ -1,9 +1,10 @@
-name: TON Price Bot
+
+name: TON Price Bot and Access Approval
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: "*/10 * * * *"
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,38 +15,44 @@ concurrency:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
-          ref: ${{ github.ref_name }}
+          fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
-      - name: Restore bot state
-        uses: actions/cache/restore@v4
-        with:
-          path: ton_state.json
-          key: ton-state-${{ github.run_id }}
-          restore-keys: |
-            ton-state-
-
-      - name: Run TON price publisher
+      - name: Check required secrets
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.CHAT_ID }}
           ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
-          STATE_FILE: ton_state.json
-          LOG_LEVEL: INFO
-        run: python gh_price_once.py
+        run: |
+          test -n "$BOT_TOKEN" || {
+            echo "ERROR: BOT_TOKEN secret is missing"
+            exit 1
+          }
+          test -n "$ADMIN_IDS" || {
+            echo "ERROR: ADMIN_IDS secret is missing"
+            exit 1
+          }
 
-      - name: Save bot state to repository
+      - name: Run bot and publish TON price
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+          CHAT_ID: "@Gram_Price_Today"
+          STATE_FILE: ton_state.json
+          RUN_ONCE: "1"
+        run: python -u bot.py
+
+      - name: Save bot state
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
@@ -55,7 +62,7 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add ton_state.json
             if ! git diff --cached --quiet; then
-              git commit -m "Update TON bot state"
-              git push origin HEAD:${GITHUB_REF_NAME}
+              git commit -m "Update TON bot state [skip ci]"
+              git push origin "HEAD:${GITHUB_REF_NAME}"
             fi
           fi
