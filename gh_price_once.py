@@ -208,23 +208,23 @@ def rsi(values, period=14):
 def analysis_text(data):
     prices = data["prices"]
     if len(prices) < 15:
-        return "ðŸ“Š Ø§Ù„ØªØ­Ù„ÙŠÙ„ Ø§Ù„ÙÙ†ÙŠ: Ø¨ÙŠØ§Ù†Ø§Øª ØºÙŠØ± ÙƒØ§ÙÙŠØ© Ø­Ø§Ù„ÙŠØ§Ù‹"
+        return "📊 التحليل الفني: بيانات غير كافية حالياً"
     current = prices[-1]
     sma7 = sum(prices[-7:]) / 7
     sma14 = sum(prices[-14:]) / 14
     value_rsi = rsi(prices, 14)
     if current > sma7 > sma14:
-        trend = "ðŸŸ¢ Ø§ØªØ¬Ø§Ù‡ ØµØ§Ø¹Ø¯ Ù‚ØµÙŠØ± Ø§Ù„Ø£Ø¬Ù„"
+        trend = "🟢 اتجاه صاعد قصير الأجل"
     elif current < sma7 < sma14:
-        trend = "ðŸ”´ Ø§ØªØ¬Ø§Ù‡ Ù‡Ø§Ø¨Ø· Ù‚ØµÙŠØ± Ø§Ù„Ø£Ø¬Ù„"
+        trend = "🔴 اتجاه هابط قصير الأجل"
     else:
-        trend = "ðŸŸ¡ Ø§ØªØ¬Ø§Ù‡ Ù…ØªØ°Ø¨Ø°Ø¨ Ø£Ùˆ ØºÙŠØ± ÙˆØ§Ø¶Ø­"
+        trend = "🟡 اتجاه متذبذب أو غير واضح"
     if value_rsi is None:
-        rsi_line = "RSI: ØºÙŠØ± Ù…ØªÙˆÙØ±"
+        rsi_line = "RSI: غير متوفر"
     else:
-        label = "Ù…Ù†Ø·Ù‚Ø© ØªØ´Ø¨Ø¹ Ø´Ø±Ø§Ø¦ÙŠ Ù…Ø­ØªÙ…Ù„Ø©" if value_rsi >= 70 else "Ù…Ù†Ø·Ù‚Ø© ØªØ´Ø¨Ø¹ Ø¨ÙŠØ¹ÙŠ Ù…Ø­ØªÙ…Ù„Ø©" if value_rsi <= 30 else "Ø¶Ù…Ù† Ø§Ù„Ù†Ø·Ø§Ù‚ Ø§Ù„Ù…Ø¹ØªØ§Ø¯"
-        rsi_line = f"RSI(14): {value_rsi:.1f} â€” {label}"
-    return f"ðŸ“Š Ø§Ù„ØªØ­Ù„ÙŠÙ„ Ø§Ù„ÙÙ†ÙŠ\n{trend}\n{rsi_line}\nðŸ“Œ ØªØ­Ù„ÙŠÙ„ Ø¢Ù„ÙŠ Ù…Ø¨Ø³Ù‘Ø·ØŒ ÙˆÙ„ÙŠØ³ ØªÙˆØµÙŠØ© Ø§Ø³ØªØ«Ù…Ø§Ø±ÙŠØ©."
+        label = "منطقة تشبع شرائي محتملة" if value_rsi >= 70 else "منطقة تشبع بيعي محتملة" if value_rsi <= 30 else "ضمن النطاق المعتاد"
+        rsi_line = f"RSI(14): {value_rsi:.1f} — {label}"
+    return f"📊 التحليل الفني\n{trend}\n{rsi_line}\n📌 تحليل آلي مبسّط، وليس توصية استثمارية."
 
 
 def make_chart(data):
@@ -233,7 +233,7 @@ def make_chart(data):
         return None
     fig, ax = plt.subplots(figsize=(10, 5.5))
     ax.plot(times, prices, linewidth=2)
-    ax.set_title("TON / USDT â€” Last 24-48 hours")
+    ax.set_title("TON / USDT — Last 24-48 hours")
     ax.set_xlabel("Baghdad time")
     ax.set_ylabel("Price (USDT)")
     ax.grid(True, alpha=0.25)
@@ -249,50 +249,50 @@ def make_chart(data):
 def build_post(data, rate, previous):
     now = datetime.now(BAGHDAD)
     price = data["price"]
-    iqd = f"{price * rate:,.0f} Ø¯.Ø¹" if rate is not None else "ØºÙŠØ± Ù…ØªÙˆÙØ± Ø­Ø§Ù„ÙŠØ§Ù‹"
-    high = f"${data['high']:.4f}" if data["high"] is not None else "ØºÙŠØ± Ù…ØªÙˆÙØ±"
-    low = f"${data['low']:.4f}" if data["low"] is not None else "ØºÙŠØ± Ù…ØªÙˆÙØ±"
+    iqd = f"{price * rate:,.0f} د.ع" if rate is not None else "غير متوفر حالياً"
+    high = f"${data['high']:.4f}" if data["high"] is not None else "غير متوفر"
+    low = f"${data['low']:.4f}" if data["low"] is not None else "غير متوفر"
     if previous is None:
-        diff = "Ø¨Ø§Ù†ØªØ¸Ø§Ø± Ø§Ù„ØªØ­Ø¯ÙŠØ« Ø§Ù„Ù‚Ø§Ø¯Ù…"
+        diff = "بانتظار التحديث القادم"
     else:
         delta = price - previous
-        emoji = "ðŸŸ¢" if delta > 0 else "ðŸ”´" if delta < 0 else "âšª"
+        emoji = "🟢" if delta > 0 else "🔴" if delta < 0 else "⚪"
         diff = f"{emoji} {delta:+.4f} USD"
-    calculator = (f"ã€€1 TON = `{iqd}`\nã€€10 TON = `{price * rate * 10:,.0f} Ø¯.Ø¹`\nã€€100 TON = `{price * rate * 100:,.0f} Ø¯.Ø¹" if rate is not None else "ã€€Ø³Ø¹Ø± Ø§Ù„ØªØ­ÙˆÙŠÙ„ Ù„Ù„Ø¯ÙŠÙ†Ø§Ø± ØºÙŠØ± Ù…ØªÙˆÙØ± Ø­Ø§Ù„ÙŠØ§Ù‹")
+    calculator = (f"　1 TON = `{iqd}`\n　10 TON = `{price * rate * 10:,.0f} د.ع`\n　100 TON = `{price * rate * 100:,.0f} د.ع" if rate is not None else "　سعر التحويل للدينار غير متوفر حالياً")
     return (
-        "ðŸ’Žâ”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”“\n"
+        "💎┏━━━━━━━━━━━━━━━━━━━━┓\n"
         "      TON  |  LIVE MARKET\n"
-        "â”—â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”›\n\n"
-        "ðŸ’µ Ø§Ù„Ø³Ø¹Ø± Ø¨Ø§Ù„Ø¯ÙˆÙ„Ø§Ø±\n"
-        f"ã€€âžœ `${price:.4f} USDT`\n\n"
-        "ðŸ‡®ðŸ‡¶ Ø§Ù„Ø³Ø¹Ø± Ø¨Ø§Ù„Ø¯ÙŠÙ†Ø§Ø± Ø§Ù„Ø¹Ø±Ø§Ù‚ÙŠ\n"
-        f"ã€€âžœ `{iqd}`\n\n"
-        "ðŸ“Š Ø¥Ø­ØµØ§Ø¦ÙŠØ§Øª Ø§Ù„Ø³ÙˆÙ‚\n"
-        f"ã€€ðŸ“ˆ ØªØºÙŠÙ‘Ø± 24 Ø³Ø§Ø¹Ø©: `{format_change(data['change'])}`\n"
-        f"ã€€ðŸ”º Ø£Ø¹Ù„Ù‰ Ø³Ø¹Ø±: `{high}`\n"
-        f"ã€€ðŸ”» Ø£Ù‚Ù„ Ø³Ø¹Ø±: `{low}`\n\n"
-        "ðŸ“‰ Ù…Ù‚Ø§Ø±Ù†Ø© Ø¨Ø§Ù„ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø³Ø§Ø¨Ù‚\n"
-        f"ã€€âžœ `{diff}`\n\n"
+        "┗━━━━━━━━━━━━━━━━━━━━┛\n\n"
+        "💵 السعر بالدولار\n"
+        f"　➜ `${price:.4f} USDT`\n\n"
+        "🇮🇶 السعر بالدينار العراقي\n"
+        f"　➜ `{iqd}`\n\n"
+        "📊 إحصائيات السوق\n"
+        f"　📈 تغيّر 24 ساعة: `{format_change(data['change'])}`\n"
+        f"　🔺 أعلى سعر: `{high}`\n"
+        f"　🔻 أقل سعر: `{low}`\n\n"
+        "📉 مقارنة بالتحديث السابق\n"
+        f"　➜ `{diff}`\n\n"
         f"{analysis_text(data)}\n\n"
-        "ðŸ§® Ø­Ø§Ø³Ø¨Ø© TON\n"
+        "🧮 حاسبة TON\n"
         f"{calculator}\n\n"
-        "ðŸ”” ØªÙ†Ø¨ÙŠÙ‡Ø§Øª Ø§Ù„Ø³Ø¹Ø±: Ù…ØªØ§Ø­Ø© Ø¹Ø¨Ø± Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„Ø¨ÙˆØª Ø¹Ù†Ø¯ ØªÙØ¹ÙŠÙ„Ù‡Ø§ Ù„Ù„Ù…Ø³ØªØ®Ø¯Ù…ÙŠÙ†\n\n"
-        "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n\n"
-        f"ðŸ•’ Ø¢Ø®Ø± ØªØ­Ø¯ÙŠØ«: `{now.strftime('%I:%M:%S %p')}`\n"
-        f"ðŸ“… Ø§Ù„ØªØ§Ø±ÙŠØ®: `{now.strftime('%d-%m-%Y')}` â€” ØªÙˆÙ‚ÙŠØª Ø¨ØºØ¯Ø§Ø¯\n\n"
-        "âš ï¸ Ø§Ù„Ø£Ø³Ø¹Ø§Ø± Ù…ØªØºÙŠØ±Ø© Ø¨Ø§Ø³ØªÙ…Ø±Ø§Ø±. Ø§Ù„ØªØ­Ù„ÙŠÙ„ Ø¢Ù„ÙŠ ÙˆÙ…Ø¹Ù„ÙˆÙ…Ø§Øª Ø¹Ø§Ù…Ø© ÙˆÙ„ÙŠØ³ ØªÙˆØµÙŠØ© Ø§Ø³ØªØ«Ù…Ø§Ø±ÙŠØ©.\n\n"
-        "ðŸ’Ž @Gram_Price_Today"
+        "🔔 تنبيهات السعر: متاحة عبر إعدادات البوت عند تفعيلها للمستخدمين\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🕒 آخر تحديث: `{now.strftime('%I:%M:%S %p')}`\n"
+        f"📅 التاريخ: `{now.strftime('%d-%m-%Y')}` — توقيت بغداد\n\n"
+        "⚠️ الأسعار متغيرة باستمرار. التحليل آلي ومعلومات عامة وليس توصية استثمارية.\n\n"
+        "💎 @Gram_Price_Today"
     )
 
 
 def format_change(value):
     if value is None:
-        return "ØºÙŠØ± Ù…ØªÙˆÙØ± Ø­Ø§Ù„ÙŠØ§Ù‹"
+        return "غير متوفر حالياً"
     if value > 0:
-        return f"ðŸŸ¢ â–² {value:+.2f}%"
+        return f"🟢 ▲ {value:+.2f}%"
     if value < 0:
-        return f"ðŸ”´ â–¼ {value:+.2f}%"
-    return f"âšª {value:+.2f}%"
+        return f"🔴 ▼ {value:+.2f}%"
+    return f"⚪ {value:+.2f}%"
 
 
 def publish_market_update(data, rate, state):
@@ -304,22 +304,22 @@ def publish_market_update(data, rate, state):
 
 def daily_report(data, rate):
     now = datetime.now(BAGHDAD)
-    iqd = f"{data['price'] * rate:,.0f} Ø¯.Ø¹" if rate is not None else "ØºÙŠØ± Ù…ØªÙˆÙØ± Ø­Ø§Ù„ÙŠØ§Ù‹"
-    high = f"${data['high']:.4f}" if data["high"] is not None else "ØºÙŠØ± Ù…ØªÙˆÙØ±"
-    low = f"${data['low']:.4f}" if data["low"] is not None else "ØºÙŠØ± Ù…ØªÙˆÙØ±"
+    iqd = f"{data['price'] * rate:,.0f} د.ع" if rate is not None else "غير متوفر حالياً"
+    high = f"${data['high']:.4f}" if data["high"] is not None else "غير متوفر"
+    low = f"${data['low']:.4f}" if data["low"] is not None else "غير متوفر"
     return (
-        "ðŸ“…â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”“\n"
-        "       TON â€¢ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø§Ù„ÙŠÙˆÙ…ÙŠ\n"
-        "â”—â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”›\n\n"
-        f"ðŸ’µ Ø§Ù„Ø³Ø¹Ø± Ø§Ù„Ø­Ø§Ù„ÙŠ: ${data['price']:.4f} USDT\n"
-        f"ðŸ‡®ðŸ‡¶ Ø¨Ø§Ù„Ø¯ÙŠÙ†Ø§Ø± Ø§Ù„Ø¹Ø±Ø§Ù‚ÙŠ: {iqd}\n"
-        f"ðŸ“ˆ ØªØºÙŠÙ‘Ø± 24 Ø³Ø§Ø¹Ø©: {format_change(data['change'])}\n"
-        f"ðŸ”º Ø£Ø¹Ù„Ù‰ Ø³Ø¹Ø± 24 Ø³Ø§Ø¹Ø©: {high}\n"
-        f"ðŸ”» Ø£Ù‚Ù„ Ø³Ø¹Ø± 24 Ø³Ø§Ø¹Ø©: {low}\n\n"
+        "📅┏━━━━━━━━━━━━━━━━━━━━┓\n"
+        "       TON • التقرير اليومي\n"
+        "┗━━━━━━━━━━━━━━━━━━━━┛\n\n"
+        f"💵 السعر الحالي: ${data['price']:.4f} USDT\n"
+        f"🇮🇶 بالدينار العراقي: {iqd}\n"
+        f"📈 تغيّر 24 ساعة: {format_change(data['change'])}\n"
+        f"🔺 أعلى سعر 24 ساعة: {high}\n"
+        f"🔻 أقل سعر 24 ساعة: {low}\n\n"
         f"{analysis_text(data)}\n\n"
-        f"ðŸ•’ {now.strftime('%I:%M %p')} â€” ØªÙˆÙ‚ÙŠØª Ø¨ØºØ¯Ø§Ø¯\n"
-        "âš ï¸ Ù…Ø¹Ù„ÙˆÙ…Ø§Øª Ø¹Ø§Ù…Ø© ÙˆÙ„ÙŠØ³Øª ØªÙˆØµÙŠØ© Ø§Ø³ØªØ«Ù…Ø§Ø±ÙŠØ©.\n"
-        "ðŸ’Ž @Gram_Price_Today"
+        f"🕒 {now.strftime('%I:%M %p')} — توقيت بغداد\n"
+        "⚠️ معلومات عامة وليست توصية استثمارية.\n"
+        "💎 @Gram_Price_Today"
     )
 
 
@@ -332,11 +332,11 @@ def notify_owner_about_addition(chat, actor, state):
     if not chat_id:
         return
     chat_type = chat.get("type", "unknown")
-    chat_title = chat.get("title") or chat.get("username") or "Ø¨Ø¯ÙˆÙ† Ø§Ø³Ù…"
-    actor_name = "ØºÙŠØ± Ù…Ø¹Ø±ÙˆÙ"
-    actor_id = "ØºÙŠØ± Ù…ØªÙˆÙØ±"
+    chat_title = chat.get("title") or chat.get("username") or "بدون اسم"
+    actor_name = "غير معروف"
+    actor_id = "غير متوفر"
     if actor:
-        actor_id = str(actor.get("id", "ØºÙŠØ± Ù…ØªÙˆÙØ±"))
+        actor_id = str(actor.get("id", "غير متوفر"))
         actor_name = " ".join(x for x in [actor.get("first_name"), actor.get("last_name")] if x) or actor.get("username") or actor_id
     state.setdefault("pending_chats", {})[chat_id] = {
         "title": chat_title,
@@ -346,18 +346,18 @@ def notify_owner_about_addition(chat, actor, state):
     }
     # Until approval, the new group/channel is not added to the approved list.
     keyboard = {"inline_keyboard": [[
-        {"text": "âœ… Ù…ÙˆØ§ÙÙ‚Ø©", "callback_data": f"access:approve:{chat_id}"},
-        {"text": "âŒ Ø±ÙØ¶", "callback_data": f"access:reject:{chat_id}"},
+        {"text": "✅ موافقة", "callback_data": f"access:approve:{chat_id}"},
+        {"text": "❌ رفض", "callback_data": f"access:reject:{chat_id}"},
     ]]}
     for owner in ADMIN_IDS:
         try:
             send_text(
-                "ðŸ” Ø·Ù„Ø¨ Ø¥Ø¶Ø§ÙØ© Ø¨ÙˆØª TON\n\n"
-                f"ðŸ“ Ø§Ù„Ù…ÙƒØ§Ù†: {chat_title}\n"
-                f"ðŸ†” Chat ID: {chat_id}\n"
-                f"ðŸ· Ø§Ù„Ù†ÙˆØ¹: {chat_type}\n"
-                f"ðŸ‘¤ Ù…Ù† Ø£Ø¶Ø§ÙÙ‡: {actor_name} ({actor_id})\n\n"
-                "Ø§Ø®ØªØ± Ù…ÙˆØ§ÙÙ‚Ø© Ø£Ùˆ Ø±ÙØ¶. Ù‚Ø¨Ù„ Ø§Ù„Ù…ÙˆØ§ÙÙ‚Ø©ØŒ Ù„Ù† ÙŠÙ†ÙÙ‘Ø° Ø§Ù„Ø¨ÙˆØª Ø£ÙˆØ§Ù…Ø± Ø¥Ø¯Ø§Ø±ÙŠØ© ÙÙŠ Ù‡Ø°Ø§ Ø§Ù„Ù…ÙƒØ§Ù†.",
+                "🔐 طلب إضافة بوت TON\n\n"
+                f"📍 المكان: {chat_title}\n"
+                f"🆔 Chat ID: {chat_id}\n"
+                f"🏷 النوع: {chat_type}\n"
+                f"👤 من أضافه: {actor_name} ({actor_id})\n\n"
+                "اختر موافقة أو رفض. قبل الموافقة، لن ينفّذ البوت أوامر إدارية في هذا المكان.",
                 owner,
                 keyboard,
             )
@@ -374,34 +374,34 @@ def handle_callback(update, state):
     parts = data.split(":", 2)
     if len(parts) != 3 or parts[0] != "access" or parts[1] not in {"approve", "reject"}:
         if callback_id:
-            telegram("answerCallbackQuery", {"callback_query_id": callback_id, "text": "Ø²Ø± ØºÙŠØ± Ù…Ø¹Ø±ÙˆÙ"})
+            telegram("answerCallbackQuery", {"callback_query_id": callback_id, "text": "زر غير معروف"})
         return
     if not is_admin(sender_id):
         if callback_id:
-            telegram("answerCallbackQuery", {"callback_query_id": callback_id, "text": "Ù‡Ø°Ø§ Ø§Ù„Ø²Ø± Ù…Ø®ØµØµ Ù„Ù…Ø§Ù„Ùƒ Ø§Ù„Ø¨ÙˆØª ÙÙ‚Ø·", "show_alert": "true"})
+            telegram("answerCallbackQuery", {"callback_query_id": callback_id, "text": "هذا الزر مخصص لمالك البوت فقط", "show_alert": "true"})
         return
     action, chat_id = parts[1], parts[2]
     pending = state.setdefault("pending_chats", {})
     entry = pending.get(chat_id)
     if not entry:
         if callback_id:
-            telegram("answerCallbackQuery", {"callback_query_id": callback_id, "text": "Ù‡Ø°Ø§ Ø§Ù„Ø·Ù„Ø¨ ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯ Ø£Ùˆ ØªÙ…Øª Ù…Ø¹Ø§Ù„Ø¬ØªÙ‡"})
+            telegram("answerCallbackQuery", {"callback_query_id": callback_id, "text": "هذا الطلب غير موجود أو تمت معالجته"})
         return
     if action == "approve":
         approved = state.setdefault("approved_chats", [])
         if chat_id not in approved:
             approved.append(chat_id)
         pending.pop(chat_id, None)
-        message = f"âœ… ØªÙ…Øª Ø§Ù„Ù…ÙˆØ§ÙÙ‚Ø© Ø¹Ù„Ù‰ {entry.get('title', chat_id)}\nðŸ†” {chat_id}\nØ§Ù„Ø¨ÙˆØª Ø³ÙŠÙ‚Ø¨Ù„ Ø£ÙˆØ§Ù…Ø±Ù‡ Ø§Ù„Ø¥Ø¯Ø§Ø±ÙŠØ© ÙÙŠ Ù‡Ø°Ø§ Ø§Ù„Ù…ÙƒØ§Ù†."
-        answer = "ØªÙ…Øª Ø§Ù„Ù…ÙˆØ§ÙÙ‚Ø©"
+        message = f"✅ تمت الموافقة على {entry.get('title', chat_id)}\n🆔 {chat_id}\nالبوت سيقبل أوامره الإدارية في هذا المكان."
+        answer = "تمت الموافقة"
     else:
         pending.pop(chat_id, None)
         try:
             telegram("leaveChat", {"chat_id": chat_id})
-            message = f"âŒ ØªÙ… Ø±ÙØ¶ {entry.get('title', chat_id)} ÙˆØºØ§Ø¯Ø±Ù‡ Ø§Ù„Ø¨ÙˆØª."
+            message = f"❌ تم رفض {entry.get('title', chat_id)} وغادره البوت."
         except Exception as exc:
-            message = f"âŒ ØªÙ… ØªØ³Ø¬ÙŠÙ„ Ø±ÙØ¶ {entry.get('title', chat_id)}ØŒ Ù„ÙƒÙ† ØªØ¹Ø°Ø±Øª Ù…ØºØ§Ø¯Ø±Ø© Ø§Ù„Ù…ÙƒØ§Ù† ØªÙ„Ù‚Ø§Ø¦ÙŠØ§Ù‹: {exc}"
-        answer = "ØªÙ… Ø§Ù„Ø±ÙØ¶"
+            message = f"❌ تم تسجيل رفض {entry.get('title', chat_id)}، لكن تعذرت مغادرة المكان تلقائياً: {exc}"
+        answer = "تم الرفض"
     save_state(state)
     if callback_id:
         telegram("answerCallbackQuery", {"callback_query_id": callback_id, "text": answer})
@@ -455,49 +455,49 @@ def handle_updates(state):
                 data = fetch_market()
                 send_text(build_post(data, (num(state.get("iqd_rate_override")) or fetch_iqd_rate()), state.get("last_price")), chat_id)
             except Exception as exc:
-                send_text(f"ØªØ¹Ø°Ø± Ø¬Ù„Ø¨ Ø§Ù„Ø³Ø¹Ø± Ø­Ø§Ù„ÙŠØ§Ù‹: {exc}", chat_id)
+                send_text(f"تعذر جلب السعر حالياً: {exc}", chat_id)
         elif command == "/analysis":
             try:
                 send_text(analysis_text(fetch_market()), chat_id)
             except Exception as exc:
-                send_text(f"ØªØ¹Ø°Ø± Ø¥Ø¹Ø¯Ø§Ø¯ Ø§Ù„ØªØ­Ù„ÙŠÙ„ Ø­Ø§Ù„ÙŠØ§Ù‹: {exc}", chat_id)
+                send_text(f"تعذر إعداد التحليل حالياً: {exc}", chat_id)
         elif command == "/chart":
             try:
                 chart = make_chart(fetch_market())
                 if chart:
-                    send_photo(chart, "ðŸ“‰ Ø­Ø±ÙƒØ© Ø³Ø¹Ø± TON", chat_id)
+                    send_photo(chart, "📉 حركة سعر TON", chat_id)
                 else:
-                    send_text("Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø±Ø³Ù… Ø§Ù„Ø¨ÙŠØ§Ù†ÙŠ ØºÙŠØ± Ù…ØªÙˆÙØ±Ø© Ø­Ø§Ù„ÙŠØ§Ù‹.", chat_id)
+                    send_text("بيانات الرسم البياني غير متوفرة حالياً.", chat_id)
             except Exception as exc:
-                send_text(f"ØªØ¹Ø°Ø± Ø¥Ø¹Ø¯Ø§Ø¯ Ø§Ù„Ø±Ø³Ù… Ø§Ù„Ø¨ÙŠØ§Ù†ÙŠ: {exc}", chat_id)
+                send_text(f"تعذر إعداد الرسم البياني: {exc}", chat_id)
         elif command == "/daily":
             try:
                 data = fetch_market()
                 send_text(daily_report(data, (num(state.get("iqd_rate_override")) or fetch_iqd_rate())), chat_id)
             except Exception as exc:
-                send_text(f"ØªØ¹Ø°Ø± Ø¥Ø¹Ø¯Ø§Ø¯ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø­Ø§Ù„ÙŠØ§Ù‹: {exc}", chat_id)
+                send_text(f"تعذر إعداد التقرير حالياً: {exc}", chat_id)
         elif command == "/status":
-            send_text("âœ… Ø¨ÙˆØª TON ÙŠØ¹Ù…Ù„ Ø¨Ù†Ø¸Ø§Ù… GitHub Actions ÙƒÙ„ 10 Ø¯Ù‚Ø§Ø¦Ù‚.", chat_id)
+            send_text("✅ بوت TON يعمل بنظام GitHub Actions كل 10 دقائق.", chat_id)
         elif command == "/calc" and len(command_parts) >= 2:
             qty = num(command_parts[1])
             if qty is None or qty < 0:
-                send_text("Ø§Ø³ØªØ®Ø¯Ù… Ø§Ù„Ø£Ù…Ø± Ù‡ÙƒØ°Ø§: /calc 10", chat_id)
+                send_text("استخدم الأمر هكذا: /calc 10", chat_id)
             else:
                 try:
                     market = fetch_market()
                     rate = num(state.get("iqd_rate_override")) or fetch_iqd_rate()
                     usd = qty * market["price"]
-                    iqd = f"{usd * rate:,.0f} Ø¯.Ø¹" if rate else "ØºÙŠØ± Ù…ØªÙˆÙØ±"
-                    send_text(f"ðŸ§® Ø­Ø§Ø³Ø¨Ø© TON\nØ§Ù„ÙƒÙ…ÙŠØ©: {qty:g} TON\nØ§Ù„Ù‚ÙŠÙ…Ø©: ${usd:,.4f}\nØ¨Ø§Ù„Ø¯ÙŠÙ†Ø§Ø±: {iqd}", chat_id)
+                    iqd = f"{usd * rate:,.0f} د.ع" if rate else "غير متوفر"
+                    send_text(f"🧮 حاسبة TON\nالكمية: {qty:g} TON\nالقيمة: ${usd:,.4f}\nبالدينار: {iqd}", chat_id)
                 except Exception as exc:
-                    send_text(f"ØªØ¹Ø°Ø± Ø§Ù„Ø­Ø³Ø§Ø¨ Ø­Ø§Ù„ÙŠØ§Ù‹: {exc}", chat_id)
+                    send_text(f"تعذر الحساب حالياً: {exc}", chat_id)
         elif command == "/iqd" and len(command_parts) >= 2:
             rate = num(command_parts[1])
             if rate and rate > 0:
                 state["iqd_rate_override"] = rate
-                send_text(f"âœ… ØªÙ… Ø¶Ø¨Ø· Ø³Ø¹Ø± Ø§Ù„ØµØ±Ù: 1 USD = {rate:,.0f} IQD", chat_id)
+                send_text(f"✅ تم ضبط سعر الصرف: 1 USD = {rate:,.0f} IQD", chat_id)
             else:
-                send_text("Ø§Ø³ØªØ®Ø¯Ù… Ø§Ù„Ø£Ù…Ø± Ù‡ÙƒØ°Ø§: /iqd 1310", chat_id)
+                send_text("استخدم الأمر هكذا: /iqd 1310", chat_id)
     save_state(state)
 
 
