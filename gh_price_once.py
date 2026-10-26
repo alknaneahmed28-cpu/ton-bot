@@ -258,26 +258,26 @@ def build_post(data, rate, previous):
         delta = price - previous
         emoji = "🟢" if delta > 0 else "🔴" if delta < 0 else "⚪"
         diff = f"{emoji} {delta:+.4f} USD"
-    calculator = (f"　1 TON = `{iqd}`\n　10 TON = `{price * rate * 10:,.0f} د.ع`\n　100 TON = `{price * rate * 100:,.0f} د.ع" if rate is not None else "　سعر التحويل للدينار غير متوفر حالياً")
+    calculator = (f"　1 TON = `{iqd}`\n　10 TON = `{price * rate * 10:,.0f} د.ع`\n　100 TON = `{price * rate * 100:,.0f} د.ع`" if rate is not None else "　سعر التحويل للدينار غير متوفر حالياً")
     return (
-        "💎┏━━━━━━━━━━━━━━━━━━━━┓\n"
+        "💎╔════════════════════╗\n"
         "      TON  |  LIVE MARKET\n"
-        "┗━━━━━━━━━━━━━━━━━━━━┛\n\n"
+        "╚════════════════════╝\n\n"
         "💵 السعر بالدولار\n"
-        f"　➜ `${price:.4f} USDT`\n\n"
+        f"　➡ `${price:.4f} USDT`\n\n"
         "🇮🇶 السعر بالدينار العراقي\n"
-        f"　➜ `{iqd}`\n\n"
+        f"　➡ `{iqd}`\n\n"
         "📊 إحصائيات السوق\n"
         f"　📈 تغيّر 24 ساعة: `{format_change(data['change'])}`\n"
-        f"　🔺 أعلى سعر: `{high}`\n"
-        f"　🔻 أقل سعر: `{low}`\n\n"
+        f"　◥ أعلى سعر: `{high}`\n"
+        f"　◢ أقل سعر: `{low}`\n\n"
         "📉 مقارنة بالتحديث السابق\n"
-        f"　➜ `{diff}`\n\n"
+        f"　➡ `{diff}`\n\n"
         f"{analysis_text(data)}\n\n"
         "🧮 حاسبة TON\n"
         f"{calculator}\n\n"
         "🔔 تنبيهات السعر: متاحة عبر إعدادات البوت عند تفعيلها للمستخدمين\n\n"
-        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "────────────────────\n\n"
         f"🕒 آخر تحديث: `{now.strftime('%I:%M:%S %p')}`\n"
         f"📅 التاريخ: `{now.strftime('%d-%m-%Y')}` — توقيت بغداد\n\n"
         "⚠️ الأسعار متغيرة باستمرار. التحليل آلي ومعلومات عامة وليس توصية استثمارية.\n\n"
@@ -308,14 +308,14 @@ def daily_report(data, rate):
     high = f"${data['high']:.4f}" if data["high"] is not None else "غير متوفر"
     low = f"${data['low']:.4f}" if data["low"] is not None else "غير متوفر"
     return (
-        "📅┏━━━━━━━━━━━━━━━━━━━━┓\n"
+        "📅╔════════════════════╗\n"
         "       TON • التقرير اليومي\n"
-        "┗━━━━━━━━━━━━━━━━━━━━┛\n\n"
+        "╚════════════════════╝\n\n"
         f"💵 السعر الحالي: ${data['price']:.4f} USDT\n"
         f"🇮🇶 بالدينار العراقي: {iqd}\n"
         f"📈 تغيّر 24 ساعة: {format_change(data['change'])}\n"
-        f"🔺 أعلى سعر 24 ساعة: {high}\n"
-        f"🔻 أقل سعر 24 ساعة: {low}\n\n"
+        f"◥ أعلى سعر 24 ساعة: {high}\n"
+        f"◢ أقل سعر 24 ساعة: {low}\n\n"
         f"{analysis_text(data)}\n\n"
         f"🕒 {now.strftime('%I:%M %p')} — توقيت بغداد\n"
         "⚠️ معلومات عامة وليست توصية استثمارية.\n"
@@ -344,7 +344,6 @@ def notify_owner_about_addition(chat, actor, state):
         "requested_by": actor_id,
         "created_at": datetime.now(BAGHDAD).isoformat(),
     }
-    # Until approval, the new group/channel is not added to the approved list.
     keyboard = {"inline_keyboard": [[
         {"text": "✅ موافقة", "callback_data": f"access:approve:{chat_id}"},
         {"text": "❌ رفض", "callback_data": f"access:reject:{chat_id}"},
@@ -357,7 +356,7 @@ def notify_owner_about_addition(chat, actor, state):
                 f"🆔 Chat ID: {chat_id}\n"
                 f"🏷 النوع: {chat_type}\n"
                 f"👤 من أضافه: {actor_name} ({actor_id})\n\n"
-                "اختر موافقة أو رفض. قبل الموافقة، لن ينفّذ البوت أوامر إدارية في هذا المكان.",
+                "اختر موافقة أو رفض. قبل الموافقة، لن ينفذ البوت أوامر إدارية في هذا المكان.",
                 owner,
                 keyboard,
             )
@@ -416,7 +415,6 @@ def handle_callback(update, state):
 
 
 def handle_updates(state):
-    # GitHub Actions polls briefly each run. my_chat_member detects bot additions to groups/channels.
     offset = int(state.get("update_offset", 0))
     updates = telegram("getUpdates", {
         "offset": offset + 1,
@@ -445,7 +443,6 @@ def handle_updates(state):
             continue
         chat = msg.get("chat") or {}
         chat_id = str(chat.get("id", ""))
-        # Private admin commands are always allowed. In groups/channels, require owner approval.
         if chat.get("type") != "private" and chat_id not in set(state.get("approved_chats", [])):
             continue
         command_parts = (msg.get("text") or "").split()
