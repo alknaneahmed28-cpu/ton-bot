@@ -1,4 +1,4 @@
-# No external dependencies required; matplotlib is intentionally not used.
+# Dependency-free TON price publisher; no matplotlib required.
 #!/usr/bin/env python3
 import json
 import os
@@ -45,12 +45,33 @@ def tg(method, payload):
     return result.get("result")
 
 
-def send(message, chat_id=None):
-    return tg("sendMessage", {
+def bot_username():
+    try:
+        return tg("getMe", {}).get("username", "")
+    except Exception:
+        return ""
+
+
+def inline_keyboard():
+    username = bot_username()
+    start_url = f"https://t.me/{username}?start=stars" if username else "https://t.me/Gram_Price_Today"
+    share_url = "https://t.me/share/url?url=https%3A%2F%2Ft.me%2FGram_Price_Today&text=تابعوا%20أسعار%20TON%20اليومية"
+    return json.dumps({"inline_keyboard": [
+        [{"text": "📢 الاشتراك بالقناة", "url": "https://t.me/Gram_Price_Today"},
+         {"text": "📤 مشاركة القناة", "url": share_url}],
+        [{"text": "⭐ حاسبة TON → Stars", "url": start_url}]
+    ]}, ensure_ascii=False)
+
+
+def send(message, chat_id=None, with_keyboard=False):
+    payload = {
         "chat_id": chat_id or CHAT_ID,
         "text": message,
         "disable_web_page_preview": "true"
-    })
+    }
+    if with_keyboard:
+        payload["reply_markup"] = inline_keyboard()
+    return tg("sendMessage", payload)
 
 
 def load_state():
@@ -165,9 +186,6 @@ def build_post(data, rate, previous):
 
 
 def admin_commands(state):
-    if not ADMIN_IDS:
-        return
-
     offset = int(state.get("update_offset", 0))
     updates = tg("getUpdates", {
         "offset": offset + 1,
@@ -180,28 +198,56 @@ def admin_commands(state):
             int(state.get("update_offset", 0)), int(update.get("update_id", 0))
         )
         message = update.get("message") or {}
-        user_id = str((message.get("from") or {}).get("id", ""))
-        if user_id not in ADMIN_IDS:
-            continue
-
         chat_id = str((message.get("chat") or {}).get("id", ""))
-        parts = (message.get("text") or "").split()
+        parts = (message.get("text") or "").strip().split()
         command = parts[0].lower().split("@")[0] if parts else ""
+        user_id = str((message.get("from") or {}).get("id", ""))
+        is_admin = user_id in ADMIN_IDS
 
-        if command == "/price":
+        if command == "/start":
+            send(
+                "أهلاً بك! ⭐ لحساب النجوم اكتب:\n/stars 3\n\n"
+                "أدخل كمية TON وسيحسب البوت عدد النجوم التقريبي حسب تقدير أندرويد وFragment.",
+                chat_id
+            )
+        elif command == "/stars":
+            if len(parts) != 2:
+                send("اكتب الكمية بهذا الشكل: /stars 3", chat_id)
+                continue
+            amount = number(parts[1])
+            if amount is None or amount <= 0 or amount > 1_000_000:
+                send("⚠️ أدخل كمية TON صحيحة أكبر من صفر.", chat_id)
+                continue
+            data = market_data()
+            if data["price"] is None:
+                send("⚠️ تعذر جلب سعر TON المباشر حالياً. جرّب لاحقاً.", chat_id)
+                continue
+            usd_value = amount * data["price"]
+            # Indicative assumptions only; actual Android price varies by region/store.
+            android_per_star = number(os.environ.get("ANDROID_STAR_USD", "0.02")) or 0.02
+            fragment_per_star = number(os.environ.get("FRAGMENT_STAR_USD", "0.015")) or 0.015
+            android_stars = usd_value / android_per_star
+            fragment_stars = usd_value / fragment_per_star
+            send(
+                f"⭐ حاسبة TON إلى Telegram Stars\n\n"
+                f"كمية TON: {amount:g} TON\n"
+                f"سعر TON المباشر: ${data['price']:.4f}\n"
+                f"القيمة التقريبية: ${usd_value:.2f}\n\n"
+                f"📱 أندرويد: نحو {android_stars:,.0f} نجمة (تقديري، ${android_per_star:.3f}/نجمة)\n"
+                f"💎 Fragment: نحو {fragment_stars:,.0f} نجمة (تقديري، ${fragment_per_star:.3f}/نجمة)\n\n"
+                "⚠️ أسعار النجوم تختلف حسب البلد والمنصة والضرائب. هذه مقارنة تقديرية وليست سعر شراء مضمون.",
+                chat_id
+            )
+        elif is_admin and command == "/price":
             data = market_data()
             rate = fx_rate()
             if data["price"] is not None:
-                send(build_post(data, rate, None), chat_id)
+                send(build_post(data, rate, None), chat_id, with_keyboard=True)
             else:
                 send("⚠️ تعذر جلب السعر؛ لم يتم إرسال رقم غير مؤكد.", chat_id)
-        elif command == "/status":
-            send(
-                "✅ البوت يعمل عبر GitHub Actions.\n"
-                "ملاحظة: الأوامر تُفحص عند تشغيل المهمة وقد تتأخر حتى 10 دقائق.",
-                chat_id
-            )
-        elif command == "/test":
+        elif is_admin and command == "/status":
+            send("✅ البوت يعمل عبر GitHub Actions. التفاعل قد يتأخر حتى 10 دقائق.", chat_id)
+        elif is_admin and command == "/test":
             send("✅ اختبار الإرسال ناجح.", chat_id)
 
     save_state(state)
@@ -229,7 +275,7 @@ def main():
     }
 
     if state.get("fingerprint") != fingerprint:
-        send(message)
+        send(message, with_keyboard=True)
         state["fingerprint"] = fingerprint
     else:
         print("No market change; duplicate post skipped.")
@@ -250,23 +296,7 @@ def main():
                 )
             state["alert_side"] = side
 
-    # Daily summary on the first successful run of each Baghdad day.
-    today = datetime.now(BAGHDAD).date().isoformat()
-    if state.get("summary_date") != today:
-        iqd = f"{data['price'] * rate:,.0f} د.ع" if rate is not None else "غير متوفر حالياً"
-        high = f"${data['high']:.4f}" if data["high"] is not None else "غير متوفر"
-        low = f"${data['low']:.4f}" if data["low"] is not None else "غير متوفر"
-        send(
-            "📅 ملخص TON اليومي\n\n"
-            f"💵 السعر: ${data['price']:.4f} USDT\n"
-            f"🇮🇶 بالدينار العراقي: {iqd}\n"
-            f"📈 تغيّر 24 ساعة: {change_text(data['change'])}\n"
-            f"🔺 أعلى سعر: {high}\n"
-            f"🔻 أقل سعر: {low}\n\n"
-            "⚠️ هذه معلومات سوق وليست توصية استثمارية.\n"
-            "💎 @Gram_Price_Today"
-        )
-        state["summary_date"] = today
+    # Daily summary disabled: avoid publishing a second, duplicate-looking post.
 
     state["last_price"] = data["price"]
     state["last_run"] = datetime.now(BAGHDAD).isoformat()
