@@ -1,68 +1,70 @@
-
 name: TON Price Bot and Access Approval
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: "*/10 * * * *"
+workflow_dispatch:
+schedule:
+- cron: "*/10 * * * *"
 
 permissions:
-  contents: write
+contents: write
 
 concurrency:
-  group: ton-price-bot
-  cancel-in-progress: false
+group: ton-price-bot
+cancel-in-progress: false
 
 jobs:
-  publish:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
+publish:
+runs-on: ubuntu-24.04
+timeout-minutes: 5
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@v5
+    with:
+      fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
+  - name: Set up Python
+    uses: actions/setup-python@v6
+    with:
+      python-version: "3.12"
 
-      - name: Check required secrets
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
-        run: |
-          test -n "$BOT_TOKEN" || {
-            echo "ERROR: BOT_TOKEN secret is missing"
-            exit 1
-          }
-          test -n "$ADMIN_IDS" || {
-            echo "ERROR: ADMIN_IDS secret is missing"
-            exit 1
-          }
+  - name: Install dependencies
+    run: |
+      python -m pip install --upgrade pip
+      if [ -f requirements.txt ]; then
+        pip install -r requirements.txt
+      else
+        pip install matplotlib
+      fi
 
-      - name: Run bot and publish TON price
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
-          CHAT_ID: "@Gram_Price_Today"
-          STATE_FILE: ton_state.json
-          RUN_ONCE: "1"
-        run: python -u bot.py
+  - name: Check required secrets
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+    run: |
+      test -n "$BOT_TOKEN" || { echo "ERROR: BOT_TOKEN secret is missing"; exit 1; }
+      test -n "$ADMIN_IDS" || { echo "ERROR: ADMIN_IDS secret is missing"; exit 1; }
 
-      - name: Save bot state
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [ -f ton_state.json ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add ton_state.json
-            if ! git diff --cached --quiet; then
-              git commit -m "Update TON bot state [skip ci]"
-              git push origin "HEAD:${GITHUB_REF_NAME}"
-            fi
-          fi
+  - name: Run bot and publish TON price
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+      CHAT_ID: "@Gram_Price_Today"
+      STATE_FILE: ton_state.json
+      RUN_ONCE: "1"
+    run: python -u bot.py
+
+  - name: Save bot state
+    if: always()
+    env:
+      GH_TOKEN: ${{ github.token }}
+    run: |
+      if [ -f ton_state.json ]; then
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add ton_state.json
+        if ! git diff --cached --quiet; then
+          git commit -m "Update TON bot state [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+        fi
+      fi
