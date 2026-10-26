@@ -1,77 +1,83 @@
-# Dependency-free TON price publisher; no matplotlib required.
 #!/usr/bin/env python3
+"""TON price publisher with movement alerts, Stars calculator and admin FX override."""
 import json
+import logging
 import os
-import sys
+import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
-BOT_TOKEN = os.environ["BOT_TOKEN"]
-CHAT_ID = os.environ.get("CHAT_ID", "@Gram_Price_Today")
-ADMIN_IDS = {x.strip() for x in os.environ.get("ADMIN_IDS", "").split(",") if x.strip()}
-ALERT_USD = os.environ.get("ALERT_USD", "").strip()
-STATE_FILE = "ton_state.json"
+BOT_TOKEN = os.environ["BOT_TOKEN"].strip()
+CHAT_ID = os.getenv("CHAT_ID", "@Gram_Price_Today").strip()
+ADMIN_IDS = {x.strip() for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()}
+POLL_SECONDS = max(30, int(os.getenv("POLL_SECONDS", "60")))
+STATE_FILE = os.getenv("STATE_FILE", "ton_state.json")
 BAGHDAD = timezone(timedelta(hours=3))
+# Approximate comparison rates, not a guaranteed checkout quote.
+FRAGMENT_USD_PER_STAR = 0.0141
+ANDROID_USD_PER_STAR_ESTIMATE = 0.0201
+ALERT_PERCENT = 3.0
 
 BINANCE_TICKER = "https://api.binance.com/api/v3/ticker/24hr?symbol=TONUSDT"
-COINGECKO = "https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd&include_24hr_change=true"
-COINGECKO_HISTORY = "https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=usd&days=1&interval=hourly"
+COINGECKO_SIMPLE = "https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true"
 FX_API = "https://open.er-api.com/v6/latest/USD"
+CHANNEL_URL = "https://t.me/Gram_Price_Today"
+SHARE_URL = "https://t.me/share/url?url=https%3A%2F%2Ft.me%2FGram_Price_Today&text=تابع%20أسعار%20TON%20مع%20قناة%20Gram%20Price%20Today"
+
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger("ton-bot")
 
 
-def get_json(url):
-    req = urllib.request.Request(url, headers={"User-Agent": "TONPriceBot/3.0"})
-    with urllib.request.urlopen(req, timeout=12) as response:
+def get_json(url, timeout=15):
+    req = urllib.request.Request(url, headers={"User-Agent": "TONChannelBot/4.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
-def number(value):
+def num(value):
     try:
         return float(value)
     except (TypeError, ValueError):
         return None
 
 
-def tg(method, payload):
+def telegram(method, payload, timeout=20):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/{method}"
-    req = urllib.request.Request(
-        url, data=urllib.parse.urlencode(payload).encode(), method="POST"
-    )
-    with urllib.request.urlopen(req, timeout=15) as response:
+    data = urllib.parse.urlencode(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as response:
         result = json.loads(response.read().decode("utf-8"))
     if not result.get("ok"):
         raise RuntimeError(result.get("description", "Telegram API error"))
     return result.get("result")
 
 
-def bot_username():
-    try:
-        return tg("getMe", {}).get("username", "")
-    except Exception:
-        return ""
+def send_text(message, chat_id=None, reply_markup=None):
+    payload = {"chat_id": chat_id or CHAT_ID, "text": message, "disable_web_page_preview": "true"}
+    if reply_markup:
+        payload["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
+    return telegram("sendMessage", payload)
 
 
-def inline_keyboard():
-    username = bot_username()
-    start_url = f"https://t.me/{username}?start=stars" if username else "https://t.me/Gram_Price_Today"
-    share_url = "https://t.me/share/url?url=https%3A%2F%2Ft.me%2FGram_Price_Today&text=تابعوا%20أسعار%20TON%20اليومية"
-    return json.dumps({"inline_keyboard": [
-        [{"text": "📢 الاشتراك بالقناة", "url": "https://t.me/Gram_Price_Today"},
-         {"text": "📤 مشاركة القناة", "url": share_url}],
-        [{"text": "⭐ حاسبة TON → Stars", "url": start_url}]
-    ]}, ensure_ascii=False)
+def channel_keyboard():
+    return {"inline_keyboard": [
+        [{"text": "⭐ حاسبة TON ↔ Stars", "callback_data": "stars_calc"}],
+        [
+            {"text": "📤 مشاركة القناة", "url": SHARE_URL},
+            {"text": "📢 الاشتراك بالقناة", "url": CHANNEL_URL},
+        ],
+    ]}
 
 
-def send(message, chat_id=None, with_keyboard=False):
-    payload = {
-        "chat_id": chat_id or CHAT_ID,
-        "text": message,
-        "disable_web_page_preview": "true"
-    }
-    if with_keyboard:
-        payload["reply_markup"] = inline_keyboard()
-    return tg("sendMessage", payload)
+def ton_calculator_keyboard():
+    return {"inline_keyboard": [
+        [{"text": "1 TON", "callback_data": "ton_amount:1"},
+         {"text": "3 TON", "callback_data": "ton_amount:3"}],
+        [{"text": "5 TON", "callback_data": "ton_amount:5"},
+         {"text": "10 TON", "callback_data": "ton_amount:10"}],
+        [{"text": "✍️ أدخل كمية يدوياً", "url": "https://t.me/Gram_Price_Today"}],
+    ]}
 
 
 def load_state():
@@ -83,64 +89,54 @@ def load_state():
 
 
 def save_state(state):
-    with open(STATE_FILE + ".tmp", "w", encoding="utf-8") as f:
+    tmp = STATE_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(state, f, ensure_ascii=False)
-    os.replace(STATE_FILE + ".tmp", STATE_FILE)
+    os.replace(tmp, STATE_FILE)
 
 
-def market_data():
-    data = {"price": None, "change": None, "high": None, "low": None}
-
+def fetch_market():
+    data = {"price": None, "change": None, "high": None, "low": None, "market_cap": None, "volume": None}
     try:
-        result = get_json(BINANCE_TICKER)
-        data.update(
-            price=number(result.get("lastPrice")),
-            change=number(result.get("priceChangePercent")),
-            high=number(result.get("highPrice")),
-            low=number(result.get("lowPrice")),
-        )
+        ticker = get_json(BINANCE_TICKER)
+        data.update(price=num(ticker.get("lastPrice")), change=num(ticker.get("priceChangePercent")),
+                    high=num(ticker.get("highPrice")), low=num(ticker.get("lowPrice")))
     except Exception as exc:
-        print("Binance unavailable:", exc, file=sys.stderr)
-
+        log.warning("Binance unavailable: %s", exc)
     if data["price"] is None:
         try:
-            result = get_json(COINGECKO)["the-open-network"]
-            data["price"] = number(result.get("usd"))
-            data["change"] = number(result.get("usd_24h_change"))
+            coin = get_json(COINGECKO_SIMPLE)["the-open-network"]
+            data.update(price=num(coin.get("usd")), change=num(coin.get("usd_24h_change")),
+                        market_cap=num(coin.get("usd_market_cap")), volume=num(coin.get("usd_24h_vol")))
         except Exception as exc:
-            print("CoinGecko unavailable:", exc, file=sys.stderr)
-
-    if data["high"] is None or data["low"] is None:
+            log.warning("CoinGecko unavailable: %s", exc)
+    if data["price"] is None:
+        raise RuntimeError("تعذر جلب سعر TON حالياً")
+    if data["market_cap"] is None or data["volume"] is None:
         try:
-            result = get_json(COINGECKO_HISTORY)
-            prices = [
-                number(row[1]) for row in result.get("prices", [])
-                if len(row) > 1 and number(row[1]) is not None
-            ]
-            if prices:
-                if data["high"] is None:
-                    data["high"] = max(prices)
-                if data["low"] is None:
-                    data["low"] = min(prices)
-        except Exception as exc:
-            print("CoinGecko history unavailable:", exc, file=sys.stderr)
-
+            coin = get_json(COINGECKO_SIMPLE)["the-open-network"]
+            data["market_cap"] = data["market_cap"] or num(coin.get("usd_market_cap"))
+            data["volume"] = data["volume"] or num(coin.get("usd_24h_vol"))
+        except Exception:
+            pass
     return data
 
 
-def fx_rate():
+def fetch_iqd_rate(state):
+    override = num(state.get("iqd_rate_override"))
+    if override and override > 0:
+        return override
     try:
-        result = get_json(FX_API)
-        rate = number(result.get("rates", {}).get("IQD"))
+        rate = num(get_json(FX_API).get("rates", {}).get("IQD"))
         return rate if rate and rate > 0 else None
     except Exception as exc:
-        print("Exchange rate unavailable:", exc, file=sys.stderr)
+        log.warning("USD/IQD exchange rate unavailable: %s", exc)
         return None
 
 
-def change_text(value):
+def format_change(value):
     if value is None:
-        return "غير متوفر حالياً"
+        return "غير متوفر"
     if value > 0:
         return f"🟢 ▲ {value:+.2f}%"
     if value < 0:
@@ -149,163 +145,207 @@ def change_text(value):
 
 
 def build_post(data, rate, previous):
-    price = data["price"]
     now = datetime.now(BAGHDAD)
-
-    iqd = f"{price * rate:,.0f} د.ع" if rate is not None else "غير متوفر حالياً"
+    price = data["price"]
+    iqd = f"{price * rate:,.0f} د.ع" if rate else "غير متوفر حالياً"
     high = f"${data['high']:.4f}" if data["high"] is not None else "غير متوفر"
     low = f"${data['low']:.4f}" if data["low"] is not None else "غير متوفر"
-
-    if previous is None:
-        difference = "بانتظار التحديث القادم"
-    else:
-        delta = price - previous
-        emoji = "🟢" if delta > 0 else "🔴" if delta < 0 else "⚪"
-        difference = f"{emoji} {delta:+.4f} USD"
-
+    market_cap = f"${data['market_cap']/1e9:.2f}B" if data.get("market_cap") else "غير متوفر"
+    volume = f"${data['volume']/1e6:.2f}M" if data.get("volume") else "غير متوفر"
+    delta = "بانتظار التحديث القادم" if previous is None else f"{((price-previous)/previous*100):+.2f}%" if previous else "—"
     return (
-        "💎┏━━━━━━━━━━━━━━━━━━━━┓\n"
-        "      TON  |  LIVE MARKET\n"
-        "┗━━━━━━━━━━━━━━━━━━━━┛\n\n"
-        "💵 السعر بالدولار\n"
-        f"　➜ `${price:.4f} USDT`\n\n"
-        "🇮🇶 السعر بالدينار العراقي\n"
-        f"　➜ `{iqd}`\n\n"
-        "📊 إحصائيات السوق\n"
-        f"　📈 تغيّر 24 ساعة: `{change_text(data['change'])}`\n"
-        f"　🔺 أعلى سعر: `{high}`\n"
-        f"　🔻 أقل سعر: `{low}`\n\n"
-        "📉 مقارنة بالتحديث السابق\n"
-        f"　➜ `{difference}`\n\n"
-        "━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"🕒 آخر تحديث: `{now.strftime('%I:%M:%S %p')}`\n"
-        f"📅 التاريخ: `{now.strftime('%d-%m-%Y')}`\n\n"
-        "⚠️ الأسعار متغيرة باستمرار وقد تختلف بين المنصات. تحقق قبل التداول.\n\n"
-        "💎 @Gram_Price_Today"
+        "💎 𓆩 TON PRICE 𓆪 💎\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "🚀 سعر تون الحالي بعد التحديث\n\n"
+        f"💵 TON / USD\n➜ ${price:.4f}\n\n"
+        f"🇮🇶 السعر بالدينار العراقي\n➜ {iqd}\n\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "📊 تغيّرات السوق | 24H\n\n"
+        f"📈 نسبة التغيّر: {format_change(data['change'])}\n"
+        f"🟢 أعلى سعر: {high}\n"
+        f"🔻 أقل سعر: {low}\n"
+        f"📉 مقارنة بالتحديث السابق: {delta}\n\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"💰 القيمة السوقية: {market_cap}\n"
+        f"🔄 حجم التداول: {volume}\n\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"🕒 آخر تحديث: {now.strftime('%I:%M %p')} | توقيت بغداد\n"
+        f"📅 {now.strftime('%d-%m-%Y')}\n\n"
+        "⚠️ الأسعار قابلة للتغيّر في أي وقت.\n\n"
+        "💎 TON • PRICE UPDATE"
     )
 
 
-def admin_commands(state):
-    offset = int(state.get("update_offset", 0))
-    updates = tg("getUpdates", {
-        "offset": offset + 1,
-        "timeout": 0,
-        "allowed_updates": json.dumps(["message"])
-    }) or []
+def check_strong_movement(data, state, now_ts):
+    history = state.get("price_history", [])
+    history = [p for p in history if now_ts - float(p.get("t", 0)) <= 3 * 3600]
+    reference = None
+    eligible = [p for p in history if now_ts - float(p.get("t", 0)) >= 55 * 60]
+    if eligible:
+        reference = max(eligible, key=lambda p: float(p.get("t", 0)))
+    price = data["price"]
+    if reference and reference.get("p"):
+        pct = (price / float(reference["p"]) - 1) * 100
+        last_alert = float(state.get("last_strong_alert_ts", 0) or 0)
+        if abs(pct) >= ALERT_PERCENT and now_ts - last_alert >= 55 * 60:
+            direction = "🚀 صعود قوي" if pct > 0 else "🚨 هبوط قوي"
+            msg = (
+                f"{direction} في سعر TON!\n\n"
+                f"⚡ التغيّر خلال نحو ساعة: {pct:+.2f}%\n"
+                f"💵 السعر الحالي: ${price:.4f}\n"
+                f"🕒 {datetime.now(BAGHDAD).strftime('%I:%M %p')} — توقيت بغداد\n\n"
+                "⚠️ تنبيه آلي لحركة السوق، وليس توصية مالية."
+            )
+            send_text(msg, reply_markup=channel_keyboard())
+            state["last_strong_alert_ts"] = now_ts
+    history.append({"t": now_ts, "p": price})
+    state["price_history"] = history[-30:]
 
+
+def stars_message(ton_amount, price):
+    usd_value = ton_amount * price
+    fragment_stars = round(usd_value / FRAGMENT_USD_PER_STAR)
+    android_stars = round(usd_value / ANDROID_USD_PER_STAR_ESTIMATE)
+    return (
+        "⭐ حاسبة TON إلى Telegram Stars\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"💎 كمية TON: {ton_amount:g} TON\n"
+        f"💵 قيمة TON بسعر السوق الحالي: ${usd_value:,.4f}\n\n"
+        f"🌐 الويب / Fragment: نحو {fragment_stars:,} نجمة\n"
+        f"🤖 أندرويد: نحو {android_stars:,} نجمة (تقديري)\n\n"
+        f"📌 سعر TON المستخدم: ${price:,.4f}\n"
+        f"📌 افتراض الويب/Fragment: ${FRAGMENT_USD_PER_STAR:.4f} لكل نجمة.\n"
+        f"📌 افتراض أندرويد: ${ANDROID_USD_PER_STAR_ESTIMATE:.4f} لكل نجمة، وقد يختلف حسب البلد والضرائب ومزوّد الدفع.\n"
+        "⚠️ هذه مقارنة قيمة وليست عرض شراء أو سعراً مضموناً. السعر النهائي يظهر في شاشة الدفع الرسمية."
+    )
+
+
+def calculator_intro():
+    return (
+        "⭐ حاسبة TON ↔ Telegram Stars\n\n"
+        "اختَر كمية TON حتى أحسب قيمتها بسعر السوق الحالي، ثم أقارنها بتكلفة النجوم التقديرية على الويب/Fragment وأندرويد.\n"
+        "الأسعار تقريبية؛ سعر أندرويد يختلف حسب البلد والضرائب."
+    )
+
+
+def handle_updates(state):
+    offset = int(state.get("update_offset", 0))
+    updates = telegram("getUpdates", {"offset": offset + 1, "timeout": 1,
+                                      "allowed_updates": json.dumps(["message", "callback_query"])}, timeout=5) or []
     for update in updates:
-        state["update_offset"] = max(
-            int(state.get("update_offset", 0)), int(update.get("update_id", 0))
-        )
-        message = update.get("message") or {}
-        chat_id = str((message.get("chat") or {}).get("id", ""))
-        parts = (message.get("text") or "").strip().split()
-        command = parts[0].lower().split("@")[0] if parts else ""
-        user_id = str((message.get("from") or {}).get("id", ""))
-        is_admin = user_id in ADMIN_IDS
+        state["update_offset"] = max(int(state.get("update_offset", 0)), int(update.get("update_id", 0)))
+        if update.get("callback_query"):
+            query = update["callback_query"]
+            callback_data = query.get("data", "")
+            telegram("answerCallbackQuery", {"callback_query_id": query["id"]})
+            callback_chat = str((query.get("from") or {}).get("id", ""))
+            if callback_data == "stars_calc":
+                if callback_chat:
+                    send_text(calculator_intro(), callback_chat, ton_calculator_keyboard())
+            elif callback_data.startswith("ton_amount:"):
+                try:
+                    amount = float(callback_data.split(":", 1)[1])
+                    market = fetch_market()
+                    if callback_chat:
+                        send_text(stars_message(amount, market["price"]), callback_chat, ton_calculator_keyboard())
+                except Exception as exc:
+                    if callback_chat:
+                        send_text(f"تعذر حساب السعر حالياً: {exc}", callback_chat, ton_calculator_keyboard())
+            continue
+        msg = update.get("message") or {}
+        text = (msg.get("text") or "").strip()
+        if not text.startswith("/"):
+            continue
+        sender_id = str((msg.get("from") or {}).get("id", ""))
+        chat = msg.get("chat") or {}
+        chat_id = str(chat.get("id", ""))
+        command_parts = text.split()
+        command = command_parts[0].lower().split("@")[0]
+        args = command_parts[1:]
+        is_admin = sender_id in ADMIN_IDS
 
         if command == "/start":
-            send(
-                "أهلاً بك! ⭐ لحساب النجوم اكتب:\n/stars 3\n\n"
-                "أدخل كمية TON وسيحسب البوت عدد النجوم التقريبي حسب تقدير أندرويد وFragment.",
-                chat_id
-            )
+            send_text("أهلاً بك في بوت TON ⭐\nأرسل /stars 1000 لحساب قيمة النجوم.\nتابع القناة: " + CHANNEL_URL, chat_id)
         elif command == "/stars":
-            if len(parts) != 2:
-                send("اكتب الكمية بهذا الشكل: /stars 3", chat_id)
+            if not args:
+                send_text(calculator_intro(), chat_id, ton_calculator_keyboard())
                 continue
-            amount = number(parts[1])
+            amount = num(args[0])
             if amount is None or amount <= 0 or amount > 1_000_000:
-                send("⚠️ أدخل كمية TON صحيحة أكبر من صفر.", chat_id)
+                send_text("استخدم الأمر هكذا: /stars 3 (يعني 3 TON)", chat_id)
                 continue
-            data = market_data()
-            if data["price"] is None:
-                send("⚠️ تعذر جلب سعر TON المباشر حالياً. جرّب لاحقاً.", chat_id)
+            try:
+                market = fetch_market()
+                send_text(stars_message(amount, market["price"]), chat_id, ton_calculator_keyboard())
+            except Exception as exc:
+                send_text(f"تعذر الحساب حالياً: {exc}", chat_id)
+        elif command == "/iqd":
+            if not is_admin:
+                send_text("⛔ هذا الأمر للمشرفين فقط.", chat_id)
                 continue
-            usd_value = amount * data["price"]
-            # Indicative assumptions only; actual Android price varies by region/store.
-            android_per_star = number(os.environ.get("ANDROID_STAR_USD", "0.02")) or 0.02
-            fragment_per_star = number(os.environ.get("FRAGMENT_STAR_USD", "0.015")) or 0.015
-            android_stars = usd_value / android_per_star
-            fragment_stars = usd_value / fragment_per_star
-            send(
-                f"⭐ حاسبة TON إلى Telegram Stars\n\n"
-                f"كمية TON: {amount:g} TON\n"
-                f"سعر TON المباشر: ${data['price']:.4f}\n"
-                f"القيمة التقريبية: ${usd_value:.2f}\n\n"
-                f"📱 أندرويد: نحو {android_stars:,.0f} نجمة (تقديري، ${android_per_star:.3f}/نجمة)\n"
-                f"💎 Fragment: نحو {fragment_stars:,.0f} نجمة (تقديري، ${fragment_per_star:.3f}/نجمة)\n\n"
-                "⚠️ أسعار النجوم تختلف حسب البلد والمنصة والضرائب. هذه مقارنة تقديرية وليست سعر شراء مضمون.",
-                chat_id
-            )
-        elif is_admin and command == "/price":
-            data = market_data()
-            rate = fx_rate()
-            if data["price"] is not None:
-                send(build_post(data, rate, None), chat_id, with_keyboard=True)
+            if not args:
+                current = fetch_iqd_rate(state)
+                current_text = f"{current:,.2f} د.ع لكل دولار" if current else "غير متوفر حالياً"
+                send_text(f"سعر الصرف الحالي: {current_text}\nلتغييره: /iqd 1500\nللعودة للسعر التلقائي: /iqd auto", chat_id)
+            elif args[0].lower() == "auto":
+                state.pop("iqd_rate_override", None)
+                save_state(state)
+                send_text("✅ تم إلغاء السعر اليدوي والعودة لسعر الصرف التلقائي.", chat_id)
             else:
-                send("⚠️ تعذر جلب السعر؛ لم يتم إرسال رقم غير مؤكد.", chat_id)
-        elif is_admin and command == "/status":
-            send("✅ البوت يعمل عبر GitHub Actions. التفاعل قد يتأخر حتى 10 دقائق.", chat_id)
-        elif is_admin and command == "/test":
-            send("✅ اختبار الإرسال ناجح.", chat_id)
+                new_rate = num(args[0])
+                if not new_rate or not 1 <= new_rate <= 1_000_000:
+                    send_text("أدخل سعراً صحيحاً، مثال: /iqd 1500", chat_id)
+                else:
+                    state["iqd_rate_override"] = new_rate
+                    save_state(state)
+                    send_text(f"✅ تم تحديث سعر الصرف إلى {new_rate:,.2f} دينار لكل دولار.", chat_id)
+        elif command == "/price" and is_admin:
+            try:
+                data = fetch_market()
+                send_text(build_post(data, fetch_iqd_rate(state), state.get("last_price")), chat_id, channel_keyboard())
+            except Exception as exc:
+                send_text(f"تعذر جلب السعر حالياً: {exc}", chat_id)
+        elif command == "/status" and is_admin:
+            send_text("✅ بوت TON يعمل. تنبيه الحركة القوية عند ±3% تقريباً خلال ساعة.", chat_id)
+        elif command in {"/analysis", "/chart", "/daily"} and is_admin:
+            send_text("تم إيقاف الرسم البياني والتحليل الفني والتقرير المنفصل؛ بيانات السوق موجودة في رسالة واحدة.", chat_id)
+    save_state(state)
 
+
+def run_cycle(state):
+    try:
+        handle_updates(state)
+    except Exception as exc:
+        log.warning("Telegram updates failed: %s", exc)
+    data = fetch_market()
+    rate = fetch_iqd_rate(state)
+    now_ts = time.time()
+    check_strong_movement(data, state, now_ts)
+    fingerprint = {key: round(data.get(key), 7) if data.get(key) is not None else None
+                   for key in ("price", "change", "high", "low", "market_cap", "volume")}
+    if fingerprint != state.get("fingerprint"):
+        send_text(build_post(data, rate, num(state.get("last_price"))), reply_markup=channel_keyboard())
+        state["last_price"] = data["price"]
+        state["fingerprint"] = fingerprint
+        state["last_market_update"] = datetime.now(BAGHDAD).isoformat()
+    else:
+        log.info("Market data unchanged; skipping channel post.")
     save_state(state)
 
 
 def main():
     state = load_state()
-    data = market_data()
-
-    if data["price"] is None:
-        raise RuntimeError("تعذر جلب السعر؛ لن يتم نشر سعر غير مؤكد.")
-
-    rate = fx_rate()
-    previous = number(state.get("last_price"))
-    message = build_post(data, rate, previous)
-
-    try:
-        admin_commands(state)
-    except Exception as exc:
-        print("Admin commands skipped:", exc, file=sys.stderr)
-
-    fingerprint = {
-        key: round(data[key], 7) if data[key] is not None else None
-        for key in ("price", "change", "high", "low")
-    }
-
-    if state.get("fingerprint") != fingerprint:
-        send(message, with_keyboard=True)
-        state["fingerprint"] = fingerprint
-    else:
-        print("No market change; duplicate post skipped.")
-
-    # Optional price-threshold alert; configure ALERT_USD in GitHub Variables.
-    if ALERT_USD:
-        threshold = number(ALERT_USD)
-        if threshold and threshold > 0:
-            side = "above" if data["price"] >= threshold else "below"
-            old_side = state.get("alert_side")
-            if old_side is not None and old_side != side:
-                status = "تجاوز الحد للأعلى" if side == "above" else "هبط دون الحد"
-                send(
-                    "🔔 تنبيه TON\n"
-                    f"السعر الحالي: ${data['price']:.4f}\n"
-                    f"الحد المحدد: ${threshold:.4f}\n"
-                    f"الحالة: {status}"
-                )
-            state["alert_side"] = side
-
-    # Daily summary disabled: avoid publishing a second, duplicate-looking post.
-
-    state["last_price"] = data["price"]
-    state["last_run"] = datetime.now(BAGHDAD).isoformat()
-    save_state(state)
+    if os.getenv("RUN_ONCE", "0").lower() in {"1", "true", "yes"}:
+        run_cycle(state)
+        return
+    log.info("Starting continuous TON bot; polling every %s seconds", POLL_SECONDS)
+    while True:
+        try:
+            run_cycle(state)
+        except Exception:
+            log.exception("Market cycle failed")
+        time.sleep(POLL_SECONDS)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:
-        print("ERROR:", exc, file=sys.stderr)
-        sys.exit(1)
+    main()
