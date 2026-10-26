@@ -247,42 +247,74 @@ def make_chart(data):
 
 
 def build_post(data, rate, previous):
+
+def build_post(data, rate, previous):
     now = datetime.now(BAGHDAD)
+
     price = data["price"]
-    iqd = f"{price * rate:,.0f} د.ع" if rate is not None else "غير متوفر حالياً"
+    iqd = f"{price * rate:,.0f} د.ع" if rate is not None else "غير متوفر"
     high = f"${data['high']:.4f}" if data["high"] is not None else "غير متوفر"
     low = f"${data['low']:.4f}" if data["low"] is not None else "غير متوفر"
+
     if previous is None:
         diff = "بانتظار التحديث القادم"
     else:
         delta = price - previous
-        emoji = "🟢" if delta > 0 else "🔴" if delta < 0 else "⚪"
-        diff = f"{emoji} {delta:+.4f} USD"
-    calculator = (f"　1 TON = `{iqd}`\n　10 TON = `{price * rate * 10:,.0f} د.ع`\n　100 TON = `{price * rate * 100:,.0f} د.ع`" if rate is not None else "　سعر التحويل للدينار غير متوفر حالياً")
+        diff = f"{delta:+.4f} USD"
+
+    if len(data["prices"]) >= 15:
+        prices = data["prices"]
+        current = prices[-1]
+        sma7 = sum(prices[-7:]) / 7
+        sma14 = sum(prices[-14:]) / 14
+
+        if current < sma7 < sma14:
+            trend = "🔴 اتجاه هابط قصير الأجل"
+        elif current > sma7 > sma14:
+            trend = "🟢 اتجاه صاعد قصير الأجل"
+        else:
+            trend = "🟡 اتجاه متذبذب أو غير واضح"
+
+        value_rsi = rsi(prices, 14)
+        rsi_value = f"{value_rsi:.1f}" if value_rsi is not None else "غير متوفر"
+    else:
+        trend = "بيانات غير كافية حالياً"
+        rsi_value = "غير متوفر"
+
+    if rate is not None:
+        calc_1 = f"{price * rate:,.0f}"
+        calc_10 = f"{price * rate * 10:,.0f}"
+        calc_100 = f"{price * rate * 100:,.0f}"
+    else:
+        calc_1 = calc_10 = calc_100 = "غير متوفر"
+
     return (
-        "💎╔════════════════════╗\n"
-        "      TON  |  LIVE MARKET\n"
-        "╚════════════════════╝\n\n"
-        "💵 السعر بالدولار\n"
-        f"　➡ `${price:.4f} USDT`\n\n"
-        "🇮🇶 السعر بالدينار العراقي\n"
-        f"　➡ `{iqd}`\n\n"
-        "📊 إحصائيات السوق\n"
-        f"　📈 تغيّر 24 ساعة: `{format_change(data['change'])}`\n"
-        f"　◥ أعلى سعر: `{high}`\n"
-        f"　◢ أقل سعر: `{low}`\n\n"
-        "📉 مقارنة بالتحديث السابق\n"
-        f"　➡ `{diff}`\n\n"
-        f"{analysis_text(data)}\n\n"
-        "🧮 حاسبة TON\n"
-        f"{calculator}\n\n"
-        "🔔 تنبيهات السعر: متاحة عبر إعدادات البوت عند تفعيلها للمستخدمين\n\n"
-        "────────────────────\n\n"
-        f"🕒 آخر تحديث: `{now.strftime('%I:%M:%S %p')}`\n"
-        f"📅 التاريخ: `{now.strftime('%d-%m-%Y')}` — توقيت بغداد\n\n"
-        "⚠️ الأسعار متغيرة باستمرار. التحليل آلي ومعلومات عامة وليس توصية استثمارية.\n\n"
+        "┏━━━━━━━━━━━━━━━━━━━┓\n"
+        "💎 سوق TON المباشر | LIVE\n"
+        "┗━━━━━━━━━━━━━━━━━━━┛\n"
+        "💵 الأسعار\n"
+        f"• USDT: ${price:.4f}\n"
+        f"• IQD: {iqd}\n"
+        "📊 تفاصيل الـ 24 ساعة\n"
+        f"🔻 التغير: {format_change(data['change'])}\n"
+        f"🔝 أعلى قمة: {high}\n"
+        f"🔻 أدنى قاع: {low}\n"
+        f"✳️ التحديث: {diff}\n"
+        "⚙️ التحليل الفني\n"
+        f"• المسار: {trend}\n"
+        f"• RSI (14): {rsi_value}\n"
+        "🖩 التحويل السريع\n"
+        f"▫️ 1 TON  ➔ {calc_1} د.ع\n"
+        f"▫️ 10 TON ➔ {calc_10} د.ع\n"
+        f"▫️ 100 TON ➔ {calc_100} د.ع\n"
+        "───────────────────\n"
+        f"⏰ التحديث: {now.strftime('%I:%M:%S %p')}\n"
+        f"📆 التاريخ: {now.strftime('%d-%m-%Y')} — توقيت بغداد\n"
+        "🔔 التنبيهات مفعلة عبر إعدادات البوت\n"
+        "⚠️ ليست توصية استثمارية\n"
         "💎 @Gram_Price_Today"
     )
+
 
 
 def format_change(value):
