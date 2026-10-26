@@ -335,17 +335,6 @@ def run_cycle(state):
 
 def main():
     state = load_state()
-    if os.getenv("RUN_ONCE", "0").lower() in {"1", "true", "yes"}:
-        run_cycle(state)
-        return
-    log.info("Starting continuous TON bot; polling every %s seconds", POLL_SECONDS)
-    while True:
-        try:
-            run_cycle(state)
-        except Exception:
-            log.exception("Market cycle failed")
-        time.sleep(POLL_SECONDS)
-
-
-if __name__ == "__main__":
-    main()
+    log.info("Starting one-shot TON price update")
+    run_cycle(state)
+    log.info("Update completed successfully")
